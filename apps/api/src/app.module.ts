@@ -4,7 +4,6 @@ import { ConfigModule } from '@nestjs/config';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { MediasoupService } from './mediasoup/mediasoup.service';
-import { MediasoupGateway } from './mediasoup/mediasoup.gateway';
 import { MediasoupModule } from './mediasoup/mediasoup.module';
 
 @Module({
@@ -16,6 +15,6 @@ import { MediasoupModule } from './mediasoup/mediasoup.module';
     MediasoupModule,
   ],
   controllers: [],
-  providers: [MediasoupService, MediasoupGateway],
+  providers: [MediasoupService],
 })
 export class AppModule {}
