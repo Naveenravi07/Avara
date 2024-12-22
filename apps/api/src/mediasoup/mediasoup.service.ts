@@ -5,11 +5,11 @@ import {
   RtpCapabilities,
   Transport,
   DtlsParameters,
-  WebRtcTransport,
   MediaKind,
   RtpParameters,
   AppData,
   Producer,
+  Consumer,
 } from 'mediasoup/node/lib/types';
 import * as mediasoup from 'mediasoup';
 
@@ -19,6 +19,7 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
   private router!: Router;
   private transports: Map<String, Transport> = new Map();
   private producers: Map<String, Producer> = new Map();
+  private consumers: Map<String, Consumer> = new Map();
 
   async onModuleInit() {
     this.worker = await mediasoup.createWorker({
@@ -48,6 +49,8 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
       ],
     });
   }
+
+  async addUserToRoom(roomId: string) {}
 
   getRouterCapabilities(): RtpCapabilities {
     return this.router?.rtpCapabilities;
@@ -102,6 +105,28 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
     });
     this.producers.set(producer.id, producer);
     return { id: producer.id };
+  }
+
+  async createConsumerFromTransport(data: any) {
+    const {
+      rtpCapabilities,
+      producerId,
+      transportId,
+    }: { rtpCapabilities: RtpCapabilities; producerId: string; transportId: string } = data;
+    if (!this.router.canConsume({ rtpCapabilities, producerId })) {
+      throw new Error('Router cannot consume ');
+    }
+    const transport = this.transports.get(transportId);
+    if (!transport) {
+      throw new Error('Transport not found');
+    }
+    let consumer = await transport.consume({
+      rtpCapabilities: rtpCapabilities,
+      producerId: producerId,
+      paused: true,
+    });
+    this.consumers.set(consumer.id, consumer);
+    return consumer.id;
   }
 
   onModuleDestroy() {

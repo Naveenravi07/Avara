@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import socket from '@/lib/socket';
 import * as mediasoupClient from 'mediasoup-client';
 import { Transport } from 'mediasoup-client/lib/types';
+import { useParams } from 'next/navigation';
 
 type Participant = {
   id: string;
@@ -15,6 +16,7 @@ type Participant = {
 };
 
 export default function Component() {
+  const { id } = useParams();
   const [participants, setParticipants] = useState<Participant[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
   const [scrollPosition, setScrollPosition] = useState(0);
@@ -70,6 +72,10 @@ export default function Component() {
           (data: any) => {
             console.log('Producer data Received on client');
             const { id } = data;
+            socket.emit('transportConsume', {
+              rtpCapabilities: device.current.rtpCapabilities,
+              producerId: id,
+            });
             callback({ id });
           },
         );
@@ -89,6 +95,17 @@ export default function Component() {
 
   const handleConnect = () => {
     console.log('Socket connected:', socket.id);
+
+    socket.emit(
+      'joinRoom',
+      {
+        id: id,
+      },
+      (status: any) => {
+        console.log(status);
+      },
+    );
+
     console.log('Emitting getRTPCapabilities...');
     socket.emit('getRTPCapabilities', null);
   };
