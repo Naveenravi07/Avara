@@ -29,6 +29,7 @@ const handleLogout = async () => {
     const data = await response.json();
     Cookie.remove('x-auth-cookie');
     console.log('logout success', data);
+        user = null;
   }
 };
 

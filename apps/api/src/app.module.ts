@@ -5,6 +5,7 @@ import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { MediasoupService } from './mediasoup/mediasoup.service';
 import { MediasoupModule } from './mediasoup/mediasoup.module';
+import { MeetModule } from './meet/meet.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { MediasoupModule } from './mediasoup/mediasoup.module';
     UsersModule,
     AuthModule,
     MediasoupModule,
+    MeetModule,
   ],
   controllers: [],
   providers: [MediasoupService],
