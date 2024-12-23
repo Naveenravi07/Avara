@@ -2,10 +2,11 @@ import { Module } from '@nestjs/common';
 import { MediasoupGateway } from './mediasoup.gateway';
 import { MediasoupService } from './mediasoup.service';
 import { SessionSerializer } from 'src/auth/session-serializer';
-import { PassportModule } from '@nestjs/passport';
+import { UsersModule } from 'src/users/users.module';
 
 @Module({
-  imports: [PassportModule.register({ session: true })],
-  providers: [MediasoupService, MediasoupGateway, SessionSerializer],
+    imports: [UsersModule],
+    providers: [MediasoupService, MediasoupGateway, SessionSerializer],
+    exports: [MediasoupService]
 })
-export class MediasoupModule {}
+export class MediasoupModule { }

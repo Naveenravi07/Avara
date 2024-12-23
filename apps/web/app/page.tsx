@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import Cookie from 'js-cookie';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -19,7 +20,6 @@ export default function LandingPage() {
     const [currentSlide, setCurrentSlide] = useState(0)
     const { user } = useAuth()
     const router = useRouter()
-
     const handleMeetCreation = async () => {
         console.log(user)
         if (user == undefined || user == null) {
@@ -33,6 +33,7 @@ export default function LandingPage() {
                 body: JSON.stringify({
                     creator: user.id
                 }),
+                credentials: 'include',
             });
             if (response.ok) {
                 let json = await response.json();
