@@ -1,6 +1,8 @@
 import {
     ConnectedSocket,
     MessageBody,
+    OnGatewayConnection,
+    OnGatewayDisconnect,
     SubscribeMessage,
     WebSocketGateway,
 } from '@nestjs/websockets';
@@ -8,15 +10,23 @@ import { MediasoupService } from './mediasoup.service';
 import type { Socket } from 'socket.io';
 import { UsersService } from 'src/users/users.service';
 
-@WebSocketGateway(7000, { cors: { origin: '*', methods: ['GET', 'POST'] } })
-export class MediasoupGateway {
+@WebSocketGateway(7000, { cors: { origin: '*',  } })
+export class MediasoupGateway implements OnGatewayConnection,OnGatewayDisconnect {
     constructor(
         private readonly MediasoupService: MediasoupService,
         private readonly userService: UsersService
     ) { }
 
+    handleConnection(client: Socket, ...args: any[]) {
+        console.log("New conenction req",client.id)
+    }
+    handleDisconnect(client: Socket) {
+        console.log("Client disconnected",client.id)
+    }
+    
     @SubscribeMessage('initialize')
     async joinRoom(@ConnectedSocket() client: Socket, @MessageBody() payload: any) {
+        console.log("initialize req")
         let user = await this.userService.getUser(payload.userId);
         if (!user) {
             client.disconnect()
@@ -36,7 +46,7 @@ export class MediasoupGateway {
 
     @SubscribeMessage('createTransport')
     async createTransport(@ConnectedSocket() client: Socket) {
-        const transport = await this.MediasoupService.createTransport(client.data.roomId);
+        const transport = await this.MediasoupService.createTransport(client.data.roomId,client.data.userId);
         client.emit('TransportData', transport);
     }
 
@@ -47,13 +57,13 @@ export class MediasoupGateway {
 
     @SubscribeMessage('transportProduce')
     async transportProduce(@ConnectedSocket() client: Socket, @MessageBody() payload: any) {
-        let producer = await this.MediasoupService.createProducerFromTransport(payload,client.data.roomId);
+        let producer = await this.MediasoupService.createProducerFromTransport(payload,client.data.roomId,client.data.userId);
         return producer;
     }
 
     @SubscribeMessage('transportConsume')
     async transportConsume(@ConnectedSocket() client: Socket, @MessageBody() payload: any) {
-        let consumerId = await this.MediasoupService.createConsumerFromTransport(payload,client.data.roomId);
-        return consumerId;
+        let consumerInfo = await this.MediasoupService.createConsumerFromTransport(payload,client.data.roomId,client.data.userId);
+        return consumerInfo;
     }
 }

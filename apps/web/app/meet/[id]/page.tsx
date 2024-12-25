@@ -75,10 +75,6 @@ export default function Component() {
                         console.log('Producer data Received on client');
                         console.log(data)
                         const { id } = data;
-                        socket.emit('transportConsume', {
-                            rtpCapabilities: device.current.rtpCapabilities,
-                            producerId: id,
-                        });
                         callback({ id });
                     },
                 );
@@ -91,6 +87,12 @@ export default function Component() {
         const recvTRansport = device.current.createRecvTransport(data);
         recvTRansport.on('connect', () => {
             console.log('Recv transport connected successfully');
+        });
+        socket.emit('transportConsume', {
+            rtpCapabilities: device.current.rtpCapabilities,
+        }, (consumeData: any) => {
+            console.log("Ready to consume")
+            console.log(consumeData)
         });
 
         getUserMediaAndSend(sendTransport);
@@ -113,7 +115,9 @@ export default function Component() {
     };
 
     useEffect(() => {
+        console.log("Inside use effect")
         if (user == undefined || user == null) return
+        console.log(user)
         socket.on('connect', handleConnect);
         socket.on('RTPCapabilities', handleRTPCapabilities);
         socket.on('TransportData', onCreateTransport);
@@ -131,7 +135,7 @@ export default function Component() {
                 stream.getVideoTracks().forEach(track => track.stop());
             }
         };
-    }, []);
+    }, [user]);
 
     const getUserMediaAndSend = async (sendTransport: Transport) => {
         try {

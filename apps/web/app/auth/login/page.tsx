@@ -34,7 +34,7 @@ export default function LoginPage() {
         }),
       });
       if (response.ok) {
-        router.push('/meet/21');
+        router.push('/');
       } else {
         let json = await response.json();
         setError(json?.message ?? 'Login failed ');

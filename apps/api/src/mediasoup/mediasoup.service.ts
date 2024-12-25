@@ -13,23 +13,45 @@ import {
 } from 'mediasoup/node/lib/types';
 import * as mediasoup from 'mediasoup';
 
-type User = {
+type UserData = {
     id: string,
     name: string,
+    transportIds: string[],
+    producersIds: string[]
+    consumersIds: string[]
 }
+type TransportData = {
+    userId: string,
+    transport: Transport,
+}
+
+type ProducerData = {
+    userId: string,
+    transportId: string,
+    producer: Producer,
+    kind: "video" | "audio"
+}
+
+type ConsumerData = {
+    userId: string,
+    transportId: string,
+    producerId: string,
+    consumer: Consumer,
+}
+
 
 type Room = {
     router: Router | null
-    users: User[],
-    transports: Transport[],
-    producers: Producer[],
-    consumers: Consumer[],
+    users: Map<string, UserData>,
+    transports: Map<string, TransportData>,
+    producers: Map<string, ProducerData>,
+    consumers: Map<string, ConsumerData>
 }
 
 @Injectable()
 export class MediasoupService implements OnModuleInit, OnModuleDestroy {
     private worker!: Worker;
-    private rooms: Map<String, Room> = new Map()
+    private rooms: Map<string, Room> = new Map()
 
     async onModuleInit() {
         this.worker = await mediasoup.createWorker({
@@ -42,17 +64,24 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
         });
     }
 
-    async addNewRoom(roomId: string, user: User) {
+    async addNewRoom(roomId: string, { name, id }: { name: string; id: string; }) {
         if (this.rooms.has(roomId)) {
             throw new Error("Room already exists")
         }
         this.rooms.set(roomId, {
-            users: [{ name: user.name, id: user.id }],
             router: null,
-            transports: [],
-            consumers: [],
-            producers: []
+            users: new Map<string, UserData>().set(id, {
+                name: name,
+                id: id,
+                transportIds: [],
+                consumersIds: [],
+                producersIds: [],
+            }),
+            transports: new Map(),
+            consumers: new Map(),
+            producers: new Map()
         })
+
     }
 
     async getRouterCapabilities(roomId: string): Promise<RtpCapabilities> {
@@ -83,7 +112,7 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
         return room.router.rtpCapabilities
     }
 
-    async createTransport(roomId: string) {
+    async createTransport(roomId: string, userId: string) {
         let room = this.rooms.get(roomId)
         if (!room) {
             throw new Error("Room not found for creating transport")
@@ -97,7 +126,13 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
             enableUdp: true,
             preferUdp: true,
         })
-        room.transports.push(transport)
+
+        room.transports.set(transport.id, {
+            userId: userId,
+            transport: transport
+        })
+        room.users.get(userId)?.transportIds.push(transport.id)
+
         return {
             id: transport.id,
             iceParameters: transport.iceParameters,
@@ -111,21 +146,21 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
         if (!room) {
             throw new Error("Room not found ")
         }
-        let item = room.transports.find((obj) => obj.id == transportId);
+        let item = room.transports.get(transportId)
         if (!item) {
             throw new Error('Transport with id not found');
         }
-        await item.connect({
+        await item.transport.connect({
             dtlsParameters: dtlsParameters
         });
     }
 
-    async createProducerFromTransport(data: any, roomId: string) {
+    async createProducerFromTransport(data: any, roomId: string, userId: string) {
         const { kind, rtpParameters, appData, transportId, }: {
             kind: MediaKind;
             rtpParameters: RtpParameters;
             appData: AppData;
-            transportId: String;
+            transportId: string;
         } = data;
 
         let room = this.rooms.get(roomId)
@@ -133,40 +168,81 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
             throw new Error("Room not found ")
         }
 
-        let transport = room.transports.find((obj) => obj.id == transportId);
+        let transport = room.transports.get(transportId)
         if (!transport) {
             throw new Error('Transport not found');
         }
-        const producer = await transport.produce({
+        const producer = await transport.transport.produce({
             kind: kind,
             rtpParameters: rtpParameters,
             appData: appData || {},
         });
-        room.producers.push(producer)
+
+        room.producers.set(producer.id, {
+            producer: producer,
+            transportId: transport.transport.id,
+            kind: kind,
+            userId: userId
+        })
+
+        room.users.get(userId)?.producersIds.push(producer.id)
         return { id: producer.id };
     }
 
-    async createConsumerFromTransport(data: any, roomId: string) {
-        const {
-            rtpCapabilities,
-            producerId,
-        }: { rtpCapabilities: RtpCapabilities; producerId: string; } = data;
+    async createConsumerFromTransport(data: any, roomId: string, userId: string) {
+        const { rtpCapabilities }: { rtpCapabilities: RtpCapabilities } = data;
 
-        let room = this.rooms.get(roomId)
-        console.log("Inside consumer create")
-
-        if (!room) {
-            throw new Error("Room not found ")
-        }
-        if (!room.router) {
-            throw new Error("Router not found")
+        const room = this.rooms.get(roomId);
+        if (!room || !room.router) {
+            throw new Error("Room or router not found");
         }
 
-        if (!room.router.canConsume({ rtpCapabilities, producerId })) {
-            throw new Error('Router cannot consume ');
-        }
+        let consumersInfo: any[]  = []
+        for (const user of room.users.values()) {
+            if (user.id === userId) continue;
 
+            for (const producerId of user.producersIds) {
+                const producer = room.producers.get(producerId);
+                if (!producer) continue;
+
+                if (!room.router.canConsume({ producerId, rtpCapabilities })) {
+                    console.error(`Router cannot consume for producer ${producerId}`);
+                    continue;
+                }
+
+                const transport = room.transports.get(producer.transportId);
+                if (!transport) {
+                    console.error(`Transport not found for producer ${producerId}`);
+                    continue;
+                }
+                try {
+                    const consumer = await transport.transport.consume({
+                        producerId,
+                        rtpCapabilities,
+                        paused: true,
+                    });
+
+                    user.consumersIds.push(consumer.id);
+                    room.consumers.set(consumer.id, {
+                        consumer,
+                        producerId,
+                        transportId: transport.transport.id,
+                        userId,
+                    });
+                    consumersInfo.push({
+                        id:consumer.id,
+                        producerId:producerId,
+                        kind: producer.kind,
+                        rtpParameters:consumer.rtpParameters
+                    })
+                } catch (err) {
+                    console.error(`Failed to create consumer for producer ${producerId}:`, err);
+                }
+            }
+        }
+        return consumersInfo
     }
+
 
     onModuleDestroy() {
         this.worker.close();
