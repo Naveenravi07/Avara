@@ -19,7 +19,6 @@ export class MeetService {
         const doc = await this.database.insert(schema.meetTable).values(data).returning()
         let roomId = doc[0]?.id
         if (!roomId) throw new Error("Room creation failed")
-
         await this.mediasoupService.addNewRoom(roomId)
         return doc[0];
     }

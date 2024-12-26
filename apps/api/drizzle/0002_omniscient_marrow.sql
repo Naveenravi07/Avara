@@ -1,1 +1,0 @@
-ALTER TABLE "meet" DROP CONSTRAINT "meet_creator_unique";

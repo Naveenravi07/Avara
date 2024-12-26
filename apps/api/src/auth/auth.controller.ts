@@ -35,7 +35,6 @@ export class AuthController {
         @Response() res: ExpressResponse,
         @CurrentUser() user: SessionUser,
     ) {
-        console.log("Hel")
         res.cookie('x-auth-cookie', user?.id);
         res.status(200).send('Success');
     }

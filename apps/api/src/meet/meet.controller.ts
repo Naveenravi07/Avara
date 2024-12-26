@@ -1,4 +1,4 @@
-import { Controller,Post, Body, UseGuards, UsePipes } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, UsePipes } from '@nestjs/common';
 import { MeetService } from './meet.service';
 import { createMeetSchema, type CreateMeet } from './dto/create-meet.dto';
 import { GResponse } from 'comon/classes/GResponse';
@@ -13,9 +13,8 @@ export class MeetController {
         private readonly meetService: MeetService,
     ) { }
 
-    @UseGuards(AuthenticatedGuard)
-    @UsePipes(new ZodValidationPipe(createMeetSchema))
     @Post()
+    @UseGuards(AuthenticatedGuard)
     async create(@Body() data: CreateMeet, @CurrentUser() user: SessionUser) {
         let doc = await this.meetService.create(data, user);
         return new GResponse({
