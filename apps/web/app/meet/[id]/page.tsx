@@ -117,6 +117,8 @@ export default function Component() {
     useEffect(() => {
         console.log("Inside use effect")
         if (user == undefined || user == null) return
+        if (id == undefined || id == null) return
+        
         console.log(user)
         socket.on('connect', handleConnect);
         socket.on('RTPCapabilities', handleRTPCapabilities);
@@ -135,11 +137,20 @@ export default function Component() {
                 stream.getVideoTracks().forEach(track => track.stop());
             }
         };
-    }, [user]);
+    }, [user,id]);
 
     const getUserMediaAndSend = async (sendTransport: Transport) => {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            const mediaType = prompt("Do you want to share your camera or screen? (Enter 'camera' or 'screen')");
+            let stream;
+            if (mediaType === "camera") {
+                stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            } else if (mediaType === "screen") {
+                stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+            } else {
+                alert("Invalid choice. Please enter 'camera' or 'screen'.");
+                return;
+            }
             if (myVideoRef.current) {
                 myVideoRef.current.srcObject = stream;
             }

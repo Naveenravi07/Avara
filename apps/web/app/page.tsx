@@ -2,7 +2,6 @@
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import Cookie from 'js-cookie';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -20,6 +19,8 @@ export default function LandingPage() {
     const [currentSlide, setCurrentSlide] = useState(0)
     const { user } = useAuth()
     const router = useRouter()
+    const [url,setUrl] = useState<string>("")
+
     const handleMeetCreation = async () => {
         console.log(user)
         if (user == undefined || user == null) {
@@ -50,6 +51,14 @@ export default function LandingPage() {
             console.log("Error occured ")
         }
 
+    }
+
+    const handleMeetJoin = ()=>{
+        if(url.startsWith('http')){
+            router.push(url)
+        }else{
+            router.push(`/meet/${url}`)
+        }
     }
 
     const slides = [
@@ -104,8 +113,9 @@ export default function LandingPage() {
                             <Input
                                 placeholder="Enter a code or link"
                                 className="h-11"
+                                onChange={(e)=>setUrl(e.target.value)}
                             />
-                            <Button variant="outline" size="lg">
+                            <Button variant="outline" size="lg" onClick={handleMeetJoin}>
                                 Join
                             </Button>
                         </div>

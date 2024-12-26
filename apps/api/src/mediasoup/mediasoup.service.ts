@@ -64,19 +64,13 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
         });
     }
 
-    async addNewRoom(roomId: string, { name, id }: { name: string; id: string; }) {
+    async addNewRoom(roomId: string) {
         if (this.rooms.has(roomId)) {
             throw new Error("Room already exists")
         }
         this.rooms.set(roomId, {
             router: null,
-            users: new Map<string, UserData>().set(id, {
-                name: name,
-                id: id,
-                transportIds: [],
-                consumersIds: [],
-                producersIds: [],
-            }),
+            users: new Map(),
             transports: new Map(),
             consumers: new Map(),
             producers: new Map()
@@ -84,7 +78,23 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
 
     }
 
+    async addUserToRoom( { name, id }: { name: string; id: string; },roomId:string){
+        let room = this.rooms.get(roomId)
+        if(!room) {
+            throw new Error("Room Does not exists")
+        }
+        room.users.set(id,{
+            transportIds:[],
+            producersIds:[],
+            consumersIds:[],
+            name:name,
+            id:id
+        })
+    }
+
     async getRouterCapabilities(roomId: string): Promise<RtpCapabilities> {
+        console.log(roomId)
+        console.log(this.rooms)
         let room = this.rooms.get(roomId)
         if (!room) {
             throw new Error("Room not found exiting..")
@@ -240,6 +250,7 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
                 }
             }
         }
+        console.log(room)
         return consumersInfo
     }
 

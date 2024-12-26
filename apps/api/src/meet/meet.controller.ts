@@ -1,11 +1,11 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller,Post, Body, UseGuards, UsePipes } from '@nestjs/common';
 import { MeetService } from './meet.service';
-import type { CreateMeet } from './dto/create-meet.dto';
-import { UpdateMeetDto } from './dto/update-meet.dto';
+import { createMeetSchema, type CreateMeet } from './dto/create-meet.dto';
 import { GResponse } from 'comon/classes/GResponse';
 import { CurrentUser } from 'comon/decorators/current-user-decorator';
-import type { SessionUser } from 'src/users/dto/session-user';
-import { throws } from 'assert';
+import { type SessionUser } from 'src/users/dto/session-user';
+import { AuthenticatedGuard } from 'src/auth/session.auth.guard';
+import { ZodValidationPipe } from 'comon/pipes/zodValidationPipe';
 
 @Controller('meet')
 export class MeetController {
@@ -13,10 +13,11 @@ export class MeetController {
         private readonly meetService: MeetService,
     ) { }
 
+    @UseGuards(AuthenticatedGuard)
+    @UsePipes(new ZodValidationPipe(createMeetSchema))
     @Post()
     async create(@Body() data: CreateMeet, @CurrentUser() user: SessionUser) {
-        // Should add a guard for this route and remove this boilerplate
-        let doc = await this.meetService.create(data,user);
+        let doc = await this.meetService.create(data, user);
         return new GResponse({
             data: doc,
             message: "meet created successfully",
@@ -24,18 +25,4 @@ export class MeetController {
         })
     }
 
-    @Get(':id')
-    findOne(@Param('id') id: string) {
-        return this.meetService.findOne(+id);
-    }
-
-    @Patch(':id')
-    update(@Param('id') id: string, @Body() updateMeetDto: UpdateMeetDto) {
-        return this.meetService.update(+id, updateMeetDto);
-    }
-
-    @Delete(':id')
-    remove(@Param('id') id: string) {
-        return this.meetService.remove(+id);
-    }
 }

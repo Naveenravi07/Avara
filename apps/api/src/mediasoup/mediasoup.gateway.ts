@@ -10,7 +10,7 @@ import { MediasoupService } from './mediasoup.service';
 import type { Socket } from 'socket.io';
 import { UsersService } from 'src/users/users.service';
 
-@WebSocketGateway(7000, { cors: { origin: '*',  } })
+@WebSocketGateway(7000, { cors: { origin: '*' } })
 export class MediasoupGateway implements OnGatewayConnection,OnGatewayDisconnect {
     constructor(
         private readonly MediasoupService: MediasoupService,
@@ -26,8 +26,11 @@ export class MediasoupGateway implements OnGatewayConnection,OnGatewayDisconnect
     
     @SubscribeMessage('initialize')
     async joinRoom(@ConnectedSocket() client: Socket, @MessageBody() payload: any) {
-        console.log("initialize req")
+        console.log("initialize req payload = ")
+        console.log(payload)
         let user = await this.userService.getUser(payload.userId);
+        console.log("Initialize user =")
+        console.log(user)
         if (!user) {
             client.disconnect()
             throw new Error("User not found with this id")
@@ -35,6 +38,10 @@ export class MediasoupGateway implements OnGatewayConnection,OnGatewayDisconnect
         client.data.roomId = payload.id
         client.data.userId = payload.userId
         client.data.nickname = user.name
+
+        this.MediasoupService.addUserToRoom({name:user.name,id:user.id},payload.id)
+        console.log("Setted data object of usr")
+        console.log(client.data)
     }
 
     @SubscribeMessage('getRTPCapabilities')
