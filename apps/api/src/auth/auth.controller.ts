@@ -58,7 +58,6 @@ export class AuthController {
     @UseGuards(GithubAuthGuard)
     @Redirect('http://localhost:5000')
     async github_cb(@Response() res: ExpressResponse, @CurrentUser() user: SessionUser) {
-        console.log(user);
         res.cookie('x-auth-cookie', user?.id);
     }
 

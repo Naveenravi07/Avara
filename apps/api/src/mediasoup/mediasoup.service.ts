@@ -264,6 +264,19 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
         return true
     }
 
+    async getAllUserDetailsInRoom(roomId: string) {
+        let room = this.rooms.get(roomId)
+        if (!room) {
+            throw new Error("Room not found")
+        }
+        let users = Array.from(room.users.values()).map((obj) => {
+            return {
+                id: obj.id,
+                name: obj.name
+            }
+        })
+        return users
+    }
 
     onModuleDestroy() {
         this.worker.close();

@@ -34,6 +34,7 @@ export class MediasoupGateway implements OnGatewayConnection,OnGatewayDisconnect
         client.data.roomId = payload.id
         client.data.userId = payload.userId
         client.data.nickname = user.name
+        await client.join(payload.id)
         await this.MediasoupService.addUserToRoom({name:user.name,id:user.id},payload.id)
     }
 
@@ -70,5 +71,11 @@ export class MediasoupGateway implements OnGatewayConnection,OnGatewayDisconnect
     async resumeConsumeTransport(@ConnectedSocket() client: Socket, @MessageBody() payload: any) {
         let status = await this.MediasoupService.resumeConsumerTransport(client.data.roomId,payload.consumerId);
         return status;
+    }
+
+    @SubscribeMessage('getAllUsersInRoom')
+    async getAllUsersInformation(@ConnectedSocket() client:Socket){
+        let users = await this.MediasoupService.getAllUserDetailsInRoom(client.data.roomId)
+        return users
     }
 }

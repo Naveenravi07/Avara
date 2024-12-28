@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useRef, useEffect, use } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Mic, MicOff, Video, VideoOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import * as mediasoupClient from 'mediasoup-client';
-import { RtpCapabilities, Transport, TransportOptions } from 'mediasoup-client/lib/types';
+import { Transport, TransportOptions } from 'mediasoup-client/lib/types';
 import { useParams } from 'next/navigation';
 import useAuth from '@/hooks/useAuth';
 import socket from '@/lib/socket';
@@ -30,6 +30,30 @@ export default function Component() {
     const [currentPage, setCurrentPage] = useState(0);
     let device = useRef<mediasoupClient.Device>(new mediasoupClient.Device());
     const [transportData, setTransportData] = useState<TransportOptions<mediasoupClient.types.AppData>>()
+
+
+    const getAllConnectedUserInformation = async () => {
+        socket.emit('getAllUsersInRoom', null, (response: any) => {
+            console.log("Users information fetched successfully", response)
+            //
+            // The current user is already added to participant list inside useEffect
+            // so Here we are adding only the other participants.
+            //
+            const partis: Participant[] = response
+                .filter((obj: any) => obj.id !== user?.id)
+                .map((obj: any) => ({
+                    id: obj.id,
+                    name: obj.name,
+                    videoOn: false,
+                    audioOn: false,
+                    track: undefined,
+                    ref: React.createRef<HTMLVideoElement>(),
+                }));
+
+            console.log('Printing participants', partis);
+            setParticipants((prevParticipants) => [...prevParticipants, ...partis]);
+        })
+    }
 
 
     const handleRTPCapabilities = async (data: any) => {
@@ -156,12 +180,15 @@ export default function Component() {
 
 
     const onCreateTransport = async (data: any) => {
+
         if (!device.current?.load) {
             console.log('No device found exiting...');
             return;
         }
         console.log('Created transports spec Received', data);
         setTransportData(data)
+
+        await getAllConnectedUserInformation()
 
         // When transport specs are received start recvieving video 
         // only send video if user enables video camera
@@ -196,6 +223,7 @@ export default function Component() {
         if (id == undefined || id == null) return
 
         addParticipant(user.id, user.name)
+        socket.connect()
 
         socket.on('connect', handleConnect);
         socket.on('RTPCapabilities', handleRTPCapabilities);
@@ -272,6 +300,9 @@ export default function Component() {
         }
     };
 
+
+
+    ///     UI Controls Start (please just dot touch this)
     const totalPages = Math.ceil(participants.length / participantsPerPage);
     const getGridClass = (count: number) => {
         if (count <= 2) return 'grid-cols-1 sm:grid-cols-2';
@@ -279,7 +310,6 @@ export default function Component() {
         if (count <= 6) return 'grid-cols-2 sm:grid-cols-3';
         return 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4';
     };
-
     const handleMouseDown = () => {
         if (containerRef.current) {
             setIsScrolling(true);
@@ -287,7 +317,6 @@ export default function Component() {
             containerRef.current.style.userSelect = 'none';
         }
     };
-
     const handleMouseUp = () => {
         if (containerRef.current) {
             setIsScrolling(false);
@@ -295,26 +324,25 @@ export default function Component() {
             containerRef.current.style.removeProperty('user-select');
         }
     };
-
     const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
         if (isScrolling && containerRef.current) {
             containerRef.current.scrollLeft -= e.movementX;
             setScrollPosition(containerRef.current.scrollLeft);
         }
     };
-
     const currentParticipants = participants.slice(
         currentPage * participantsPerPage,
         (currentPage + 1) * participantsPerPage,
     );
-
     const handleNextPage = () => {
         setCurrentPage(prevPage => (prevPage + 1) % totalPages);
     };
-
     const handlePrevPage = () => {
         setCurrentPage(prevPage => (prevPage - 1 + totalPages) % totalPages);
     };
+
+    ///     UI Controls end 
+
 
     return (
         <div className="flex flex-col h-[calc(100vh-4rem)] bg-white text-gray-800">
