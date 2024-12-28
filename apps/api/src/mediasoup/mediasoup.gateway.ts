@@ -26,11 +26,7 @@ export class MediasoupGateway implements OnGatewayConnection,OnGatewayDisconnect
     
     @SubscribeMessage('initialize')
     async joinRoom(@ConnectedSocket() client: Socket, @MessageBody() payload: any) {
-        console.log("initialize req payload = ")
-        console.log(payload)
         let user = await this.userService.getUser(payload.userId);
-        console.log("Initialize user =")
-        console.log(user)
         if (!user) {
             client.disconnect()
             throw new Error("User not found with this id")
@@ -38,10 +34,7 @@ export class MediasoupGateway implements OnGatewayConnection,OnGatewayDisconnect
         client.data.roomId = payload.id
         client.data.userId = payload.userId
         client.data.nickname = user.name
-
-        this.MediasoupService.addUserToRoom({name:user.name,id:user.id},payload.id)
-        console.log("Setted data object of usr")
-        console.log(client.data)
+        await this.MediasoupService.addUserToRoom({name:user.name,id:user.id},payload.id)
     }
 
     @SubscribeMessage('getRTPCapabilities')
@@ -72,5 +65,10 @@ export class MediasoupGateway implements OnGatewayConnection,OnGatewayDisconnect
     async transportConsume(@ConnectedSocket() client: Socket, @MessageBody() payload: any) {
         let consumerInfo = await this.MediasoupService.createConsumerFromTransport(payload,client.data.roomId,client.data.userId);
         return consumerInfo;
+    }
+    @SubscribeMessage('resumeConsumeTransport')
+    async resumeConsumeTransport(@ConnectedSocket() client: Socket, @MessageBody() payload: any) {
+        let status = await this.MediasoupService.resumeConsumerTransport(client.data.roomId,payload.consumerId);
+        return status;
     }
 }

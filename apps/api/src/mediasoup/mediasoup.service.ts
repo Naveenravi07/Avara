@@ -12,6 +12,7 @@ import {
     Consumer,
 } from 'mediasoup/node/lib/types';
 import * as mediasoup from 'mediasoup';
+import { consumers } from 'stream';
 
 type UserData = {
     id: string,
@@ -78,23 +79,21 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
 
     }
 
-    async addUserToRoom( { name, id }: { name: string; id: string; },roomId:string){
+    async addUserToRoom({ name, id }: { name: string; id: string; }, roomId: string) {
         let room = this.rooms.get(roomId)
-        if(!room) {
+        if (!room) {
             throw new Error("Room Does not exists")
         }
-        room.users.set(id,{
-            transportIds:[],
-            producersIds:[],
-            consumersIds:[],
-            name:name,
-            id:id
+        room.users.set(id, {
+            transportIds: [],
+            producersIds: [],
+            consumersIds: [],
+            name: name,
+            id: id
         })
     }
 
     async getRouterCapabilities(roomId: string): Promise<RtpCapabilities> {
-        console.log(roomId)
-        console.log(this.rooms)
         let room = this.rooms.get(roomId)
         if (!room) {
             throw new Error("Room not found exiting..")
@@ -207,7 +206,7 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
             throw new Error("Room or router not found");
         }
 
-        let consumersInfo: any[]  = []
+        let consumersInfo: any[] = []
         for (const user of room.users.values()) {
             if (user.id === userId) continue;
 
@@ -240,18 +239,29 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
                         userId,
                     });
                     consumersInfo.push({
-                        id:consumer.id,
-                        producerId:producerId,
+                        id: consumer.id,
+                        producerId: producerId,
                         kind: producer.kind,
-                        rtpParameters:consumer.rtpParameters
+                        rtpParameters: consumer.rtpParameters
                     })
                 } catch (err) {
                     console.error(`Failed to create consumer for producer ${producerId}:`, err);
                 }
             }
         }
-        console.log(room)
         return consumersInfo
+    }
+
+    async resumeConsumerTransport(roomId: string, consumerId: string) {
+        const room = this.rooms.get(roomId);
+        if (!room || !room.router) {
+            throw new Error("Room or router not found");
+        }
+        let consumer = room.consumers.get(consumerId)
+        console.log("Found consumer to be resumed")
+        console.log(consumers)
+        await consumer?.consumer.resume()
+        return true
     }
 
 

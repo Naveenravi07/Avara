@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, use } from 'react';
 import { ChevronLeft, ChevronRight, Mic, MicOff, Video, VideoOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import * as mediasoupClient from 'mediasoup-client';
@@ -14,26 +14,30 @@ type Participant = {
     name: string;
     videoOn: boolean;
     audioOn: boolean;
+    ref: React.RefObject<HTMLVideoElement>;
+    track: MediaStreamTrack | undefined
 };
 
+const participantsPerPage = 6;
+
 export default function Component() {
+    const { user } = useAuth()
     const { id } = useParams();
     const [participants, setParticipants] = useState<Participant[]>([]);
     const containerRef = useRef<HTMLDivElement>(null);
     const [scrollPosition, setScrollPosition] = useState(0);
     const [isScrolling, setIsScrolling] = useState(false);
-    const [myAudioOn, setMyAudioOn] = useState(true);
-    const [myVideoOn, setMyVideoOn] = useState(true);
     const [currentPage, setCurrentPage] = useState(0);
     const myVideoRef = useRef<HTMLVideoElement>(null);
+    const secondVideoRef = useRef<HTMLVideoElement>(null);
     let device = useRef<mediasoupClient.Device>(new mediasoupClient.Device());
-    const { user } = useAuth()
 
     const handleRTPCapabilities = async (data: any) => {
         if (!device.current?.loaded) {
             console.log('Received RTP Capabilities:', data.data);
             var cap = { routerRtpCapabilities: data.data };
             await device.current.load(cap);
+            console.log("Emitting createTransport")
             socket.emit('createTransport', null);
         }
     };
@@ -43,14 +47,16 @@ export default function Component() {
             console.log('No device found exiting...');
             return;
         }
-        console.log('Created transports spec Received');
-        console.log(data);
 
+        console.log('Created transports spec Received', data);
         const sendTransport = device.current.createSendTransport(data);
 
         sendTransport.on('connect', async ({ dtlsParameters }, callback, errorback) => {
             try {
-                console.log('Conencted sendTransport to server');
+                console.log('inside Send transport connect event ');
+                console.log('emitting transportConnect with dtlsParameters and transportId');
+                console.log(`transportId = ${sendTransport.id}`);
+
                 socket.emit('transportConnect', {
                     transportId: sendTransport.id,
                     dtlsParameters: dtlsParameters,
@@ -72,39 +78,71 @@ export default function Component() {
                         appData: parameters.appData,
                     },
                     (data: any) => {
-                        console.log('Producer data Received on client');
-                        console.log(data)
+                        console.log('Send transport produce event fired internally with data ', data);
                         const { id } = data;
                         callback({ id });
                     },
                 );
-                console.log('prduce sendTransport to server');
             } catch (err) {
                 errback(err as Error);
             }
         });
 
         const recvTRansport = device.current.createRecvTransport(data);
-        recvTRansport.on('connect', () => {
-            console.log('Recv transport connected successfully');
+
+        recvTRansport.on('connect', async ({ dtlsParameters }, callback, errback) => {
+            console.log('Recv transport connect event fired internally');
+            try {
+                console.log(`Emitting transportConnect event with id=${recvTRansport.id} and dtlsParameters`);
+                socket.emit("transportConnect", {
+                    dtlsParameters: dtlsParameters,
+                    transportId: recvTRansport.id
+                }, () => {
+                    callback()
+                })
+            } catch (err) {
+                console.log("Error occured", err)
+                errback(err as Error)
+            }
         });
+
         socket.emit('transportConsume', {
             rtpCapabilities: device.current.rtpCapabilities,
-        }, (consumeData: any) => {
+        }, async (consumeData: any) => {
             console.log("Ready to consume")
             console.log(consumeData)
+
+            for (const obj of consumeData) {
+                const cnsumer = await recvTRansport.consume({
+                    id: obj.id,
+                    producerId: obj.producerId,
+                    kind: obj.kind,
+                    rtpParameters: obj.rtpParameters,
+                })
+
+                console.log("consumer created in client side", cnsumer)
+                const { track } = cnsumer
+                if (secondVideoRef.current) {
+                    console.log("Second video track setting")
+                    secondVideoRef.current.srcObject = new MediaStream([track])
+
+                    socket.emit('resumeConsumeTransport', {
+                        consumerId: obj.id
+                    }, (status: any) => {
+                        console.log("Resume transport status" + status)
+                    })
+
+                }
+            }
         });
 
         getUserMediaAndSend(sendTransport);
     };
 
     const handleConnect = () => {
-        console.log('Socket connected:', socket.id);
-        socket.emit('initialize',
-            {
-                id: id,
-                userId: user?.id
-            },
+        console.log('Socket connected with socket id:', socket.id);
+
+        socket.emit('initialize', { id: id, userId: user?.id },
             (status: any) => {
                 console.log(status);
             },
@@ -114,12 +152,55 @@ export default function Component() {
         socket.emit('getRTPCapabilities', null);
     };
 
+    const getUserMediaAndSend = async (sendTransport: Transport) => {
+        try {
+            const mediaType = prompt("Do you want to share your camera or screen? (Enter 'camera' or 'screen')");
+            let stream;
+            if (mediaType === "camera") {
+                stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            } else if (mediaType === "screen") {
+                stream = await navigator.mediaDevices.getDisplayMedia({ video: true })
+            } else {
+                alert("Invalid choice. Please enter 'camera' or 'screen'.");
+                return;
+            }
+            if (myVideoRef.current) {
+                myVideoRef.current.srcObject = stream;
+            }
+            const videoTrack = stream.getVideoTracks()[0];
+            console.log("Media ready to produce, sendtransport connect event will be fired internally if this is first chunk")
+
+            const producer = await sendTransport.produce({
+                track: videoTrack,
+                encodings: [{ maxBitrate: 100000 }, { maxBitrate: 300000 }, { maxBitrate: 900000 }],
+                codecOptions: {
+                    videoGoogleStartBitrate: 1000,
+                },
+            });
+            console.log('Producer instaniated successfully', producer);
+        } catch (err) {
+            console.log(err);
+        }
+    };
+
+    const addParticipant = (id: string, name: string) => {
+        setParticipants(prev => [...prev, {
+            id,
+            name,
+            videoOn: false,
+            audioOn: false,
+            track: undefined,
+            ref: React.createRef<HTMLVideoElement>() 
+        }]);
+    };
+
     useEffect(() => {
         console.log("Inside use effect")
         if (user == undefined || user == null) return
         if (id == undefined || id == null) return
-        
+
         console.log(user)
+        addParticipant(user.id, user.name)
         socket.on('connect', handleConnect);
         socket.on('RTPCapabilities', handleRTPCapabilities);
         socket.on('TransportData', onCreateTransport);
@@ -137,48 +218,61 @@ export default function Component() {
                 stream.getVideoTracks().forEach(track => track.stop());
             }
         };
-    }, [user,id]);
+    }, [user, id]);
 
-    const getUserMediaAndSend = async (sendTransport: Transport) => {
-        try {
-            const mediaType = prompt("Do you want to share your camera or screen? (Enter 'camera' or 'screen')");
-            let stream;
-            if (mediaType === "camera") {
-                stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            } else if (mediaType === "screen") {
-                stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-            } else {
-                alert("Invalid choice. Please enter 'camera' or 'screen'.");
-                return;
-            }
-            if (myVideoRef.current) {
-                myVideoRef.current.srcObject = stream;
-            }
-            const videoTrack = stream.getVideoTracks()[0];
-            const producer = await sendTransport.produce({
-                track: videoTrack,
-                encodings: [{ maxBitrate: 100000 }, { maxBitrate: 300000 }, { maxBitrate: 900000 }],
-                codecOptions: {
-                    videoGoogleStartBitrate: 1000,
-                },
-            });
-            console.log('Producer instaniated successfully');
-            console.log(producer);
-        } catch (err) {
-            console.log(err);
-        }
+    const handleMyAudioToggle = () => {
+        if (user == null || user == undefined) return;
+        setParticipants(prev => {
+            const index = prev.findIndex(obj => obj.id === user.id);
+
+            return prev.map((participant, i) =>
+                i === index
+                    ? { ...participant, audioOn: !participant.audioOn }
+                    : participant
+            );
+        });
     };
 
-    const participantsPerPage = 6;
-    useEffect(() => {
-        const mockParticipants: Participant[] = Array.from({ length: 4 }, (_, i) => ({
-            id: `user-${i + 1}`,
-            name: `User ${i + 1}`,
-            videoOn: Math.random() > 0.3,
-            audioOn: Math.random() > 0.3,
-        }));
-        setParticipants(mockParticipants);
-    }, []);
+    const handleMyVideoToggle = async () => {
+        if (!user) return;
+        
+        const index = participants.findIndex(obj => obj.id === user.id);
+        if (index === -1) return;
+
+        const participant = participants[index];
+        const isVideoOn = !participant?.videoOn;
+
+        if (isVideoOn) {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                const videoTrack = stream.getVideoTracks()[0];
+                
+                if (participant?.ref?.current) {
+                    participant.ref.current.srcObject = stream;
+                }
+                
+                setParticipants(prevState => prevState.map(p =>
+                    p.id === user.id
+                        ? { ...p, videoOn: true, track: videoTrack }
+                        : p
+                ));
+            } catch (error) {
+                console.error("Error accessing camera:", error);
+            }
+        } else {
+            if (participant.track) {
+                participant.track.stop();
+            }
+            if (participant.ref?.current) {
+                participant.ref.current.srcObject = null;
+            }
+            setParticipants(prevState => prevState.map(p =>
+                p.id === user.id
+                    ? { ...p, videoOn: false, track: undefined }
+                    : p
+            ));
+        }
+    };
 
     const totalPages = Math.ceil(participants.length / participantsPerPage);
     const getGridClass = (count: number) => {
@@ -186,21 +280,6 @@ export default function Component() {
         if (count <= 4) return 'grid-cols-2';
         if (count <= 6) return 'grid-cols-2 sm:grid-cols-3';
         return 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4';
-    };
-
-    const handleScroll = (direction: 'left' | 'right') => {
-        if (containerRef.current) {
-            const scrollAmount = containerRef.current.clientWidth;
-            const newPosition =
-                direction === 'left'
-                    ? Math.max(0, scrollPosition - scrollAmount)
-                    : Math.min(
-                        containerRef.current.scrollWidth - containerRef.current.clientWidth,
-                        scrollPosition + scrollAmount,
-                    );
-            containerRef.current.scrollTo({ left: newPosition, behavior: 'smooth' });
-            setScrollPosition(newPosition);
-        }
     };
 
     const handleMouseDown = () => {
@@ -256,20 +335,13 @@ export default function Component() {
                                 key={participant.id}
                                 className="relative bg-gray-200 rounded-lg overflow-hidden shadow-md"
                             >
-                                {participant.videoOn ? (
-                                    <video
-                                        ref={i == 0 ? myVideoRef : null}
-                                        className="w-full h-full object-cover"
-                                        src="/placeholder.svg"
-                                        autoPlay
-                                        muted
-                                        loop
-                                    />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center bg-gray-300">
-                                        <span className="text-4xl text-gray-600">{participant.name[0]}</span>
-                                    </div>
-                                )}
+                                <video
+                                    ref={participant.ref}
+                                    autoPlay
+                                    playsInline
+                                    muted={participant.id === user?.id}
+                                    className="w-full h-full object-cover"
+                                />
                                 <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between bg-white bg-opacity-80 rounded px-2 py-1">
                                     <span className="text-sm font-medium">{participant.name}</span>
                                     <div className="flex space-x-1">
@@ -279,7 +351,7 @@ export default function Component() {
                                             <MicOff className="h-4 w-4 text-red-600" />
                                         )}
                                         {participant.videoOn ? (
-                                            <Video className="h-4 w-4 text-green-600" />
+                                            <Video  className="h-4 w-4 text-green-600" />
                                         ) : (
                                             <VideoOff className="h-4 w-4 text-red-600" />
                                         )}
@@ -291,20 +363,27 @@ export default function Component() {
                 </div>
             </div>
             <div className="h-20 bg-gray-100 flex items-center justify-center space-x-4 px-4 shadow-md">
-                <Button variant="outline" size="icon" onClick={() => setMyAudioOn(!myAudioOn)}>
-                    {myAudioOn ? (
-                        <Mic className="h-4 w-4 text-green-600" />
-                    ) : (
-                        <MicOff className="h-4 w-4 text-red-600" />
-                    )}
+                <Button variant="outline" size="icon" onClick={handleMyAudioToggle}>
+                    {(() => {
+                        const isAudioOn = participants.find(obj => obj.id === user?.id)?.audioOn;
+                        return isAudioOn ? (
+                            <Mic className="h-4 w-4 text-green-600" />
+                        ) : (
+                            <MicOff className="h-4 w-4 text-red-600" />
+                        );
+                    })()}
                 </Button>
-                <Button variant="outline" size="icon" onClick={() => setMyVideoOn(!myVideoOn)}>
-                    {myVideoOn ? (
-                        <Video className="h-4 w-4 text-green-600" />
-                    ) : (
-                        <VideoOff className="h-4 w-4 text-red-600" />
-                    )}
+                <Button variant="outline" size="icon" onClick={handleMyVideoToggle}>
+                    {(() => {
+                        const isVideoOn = participants.find(obj => obj.id === user?.id)?.videoOn;
+                        return isVideoOn ? (
+                            <Video className="h-4 w-4 text-green-600" />
+                        ) : (
+                            <VideoOff className="h-4 w-4 text-red-600" />
+                        );
+                    })()}
                 </Button>
+
                 <Button variant="secondary" size="icon" onClick={handlePrevPage} disabled={totalPages <= 1}>
                     <ChevronLeft className="h-4 w-4" />
                 </Button>

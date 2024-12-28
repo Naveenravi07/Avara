@@ -15,7 +15,6 @@ export class MeetService {
 
     async create(data: CreateMeet, user: SessionUser) {
         if (!user) throw new UnauthorizedException()
-
         const doc = await this.database.insert(schema.meetTable).values(data).returning()
         let roomId = doc[0]?.id
         if (!roomId) throw new Error("Room creation failed")
