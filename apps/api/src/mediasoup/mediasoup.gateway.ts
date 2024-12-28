@@ -46,14 +46,14 @@ export class MediasoupGateway implements OnGatewayConnection,OnGatewayDisconnect
     }
 
     @SubscribeMessage('createTransport')
-    async createTransport(@ConnectedSocket() client: Socket) {
-        const transport = await this.MediasoupService.createTransport(client.data.roomId,client.data.userId);
-        client.emit('TransportData', transport);
+    async createTransport(@ConnectedSocket() client: Socket,@MessageBody() payload: any) {
+        const transport = await this.MediasoupService.createTransport(client.data.roomId,client.data.userId,payload.consumer);
+        return transport
     }
 
     @SubscribeMessage('transportConnect')
     async transportConnect(@ConnectedSocket() client: Socket, @MessageBody() payload: any) {
-        await this.MediasoupService.setDtlsParameters(payload.transportId, payload.dtlsParameters,client.data.roomId);
+        await this.MediasoupService.setDtlsParameters(payload.transportId, payload.dtlsParameters,client.data.roomId,payload.consumer);
     }
 
     @SubscribeMessage('transportProduce')

@@ -11,7 +11,7 @@ async function bootstrap() {
     const app = await NestFactory.create(AppModule);
     const configService = app.get(ConfigService);
     app.useGlobalFilters(new AllExceptionsFilter());
-    app.useGlobalFilters(new DrizzleExceptionFilter())
+    //app.useGlobalFilters(new DrizzleExceptionFilter())
 
     app.enableCors({
         origin: [

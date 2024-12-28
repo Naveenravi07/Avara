@@ -25,11 +25,9 @@ export default function Component() {
     const { id } = useParams();
     const [participants, setParticipants] = useState<Participant[]>([]);
     const containerRef = useRef<HTMLDivElement>(null);
-    const [scrollPosition, setScrollPosition] = useState(0);
     const [isScrolling, setIsScrolling] = useState(false);
     const [currentPage, setCurrentPage] = useState(0);
     let device = useRef<mediasoupClient.Device>(new mediasoupClient.Device());
-    const [transportData, setTransportData] = useState<TransportOptions<mediasoupClient.types.AppData>>()
 
 
     const getAllConnectedUserInformation = async () => {
@@ -61,9 +59,9 @@ export default function Component() {
             console.log('Received RTP Capabilities:', data.data);
             var cap = { routerRtpCapabilities: data.data };
             await device.current.load(cap);
-            console.log("Emitting createTransport")
-            socket.emit('createTransport', null);
         }
+        await getAllConnectedUserInformation()
+        await receiveAllVideoFromServer()
     };
 
 
@@ -84,118 +82,112 @@ export default function Component() {
 
 
     const sendvideoToServer = async (videoTrack: MediaStreamTrack) => {
-        if (!transportData) {
-            console.log("Transport information not found ")
-            return
-        }
-        const sendTransport = device.current.createSendTransport(transportData);
-        sendTransport.on('connect', async ({ dtlsParameters }, callback, errorback) => {
-            try {
-                console.log('inside Send transport connect event ');
-                console.log('emitting transportConnect with dtlsParameters and transportId');
-                console.log(`transportId = ${sendTransport.id}`);
+        console.log("Emitting createTransport for producing ")
+        socket.emit('createTransport', { consumer: false }, (transportData: any) => {
 
-                socket.emit('transportConnect', {
-                    transportId: sendTransport.id,
-                    dtlsParameters: dtlsParameters,
-                });
-                callback();
-            } catch (error) {
-                errorback(error as Error);
-            }
-        });
-        sendTransport.on('produce', async (parameters, callback, errback) => {
-            try {
-                socket.emit(
-                    'transportProduce',
-                    {
+            const sendTransport = device.current.createSendTransport(transportData);
+            sendTransport.on('connect', async ({ dtlsParameters }, callback, errorback) => {
+                try {
+                    console.log('inside Send transport connect event ');
+                    console.log('emitting transportConnect with dtlsParameters and transportId');
+                    console.log(`transportId = ${sendTransport.id}`);
+
+                    socket.emit('transportConnect', {
                         transportId: sendTransport.id,
-                        kind: parameters.kind,
-                        rtpParameters: parameters.rtpParameters,
-                        appData: parameters.appData,
-                    },
-                    (data: any) => {
-                        console.log('Send transport produce event fired internally with data ', data);
-                        const { id } = data;
-                        callback({ id });
-                    },
-                );
-            } catch (err) {
-                errback(err as Error);
-            }
-        });
-        getUserMediaAndSend(sendTransport, videoTrack)
-    }
-
-    const receiveAllVideoFromServer = async (data: TransportOptions<mediasoupClient.types.AppData>) => {
-        const recvTRansport = device.current.createRecvTransport(data);
-
-        recvTRansport.on('connect', async ({ dtlsParameters }, callback, errback) => {
-            console.log('Recv transport connect event fired internally');
-            try {
-                console.log(`Emitting transportConnect event with id=${recvTRansport.id} and dtlsParameters`);
-                socket.emit("transportConnect", {
-                    dtlsParameters: dtlsParameters,
-                    transportId: recvTRansport.id
-                }, () => {
-                    callback()
-                })
-            } catch (err) {
-                console.log("Error occured", err)
-                errback(err as Error)
-            }
-        });
-
-        socket.emit('transportConsume', {
-            rtpCapabilities: device.current.rtpCapabilities,
-        }, async (consumeData: any) => {
-            console.log("Ready to consume")
-            console.log(consumeData)
-
-            for (const obj of consumeData) {
-                const cnsumer = await recvTRansport.consume({
-                    id: obj.id,
-                    producerId: obj.producerId,
-                    kind: obj.kind,
-                    rtpParameters: obj.rtpParameters,
-                })
-
-                console.log("consumer created in client side", cnsumer)
-                const { track } = cnsumer
-                //if (secondVideoRef.current) {
-                //    console.log("Second video track setting")
-                //    secondVideoRef.current.srcObject = new MediaStream([track])
-
-                //    socket.emit('resumeConsumeTransport', {
-                //        consumerId: obj.id
-                //    }, (status: any) => {
-                //        console.log("Resume transport status" + status)
-                //    })
-
-                //}
-            }
+                        dtlsParameters: dtlsParameters,
+                        consumer: false
+                    });
+                    callback();
+                } catch (error) {
+                    errorback(error as Error);
+                }
+            });
+            sendTransport.on('produce', async (parameters, callback, errback) => {
+                try {
+                    socket.emit(
+                        'transportProduce',
+                        {
+                            transportId: sendTransport.id,
+                            kind: parameters.kind,
+                            rtpParameters: parameters.rtpParameters,
+                            appData: parameters.appData,
+                        },
+                        (data: any) => {
+                            console.log('Send transport produce event fired internally with data ', data);
+                            const { id } = data;
+                            callback({ id });
+                        },
+                    );
+                } catch (err) {
+                    errback(err as Error);
+                }
+            });
+            getUserMediaAndSend(sendTransport, videoTrack)
         });
     }
 
 
 
-    const onCreateTransport = async (data: any) => {
+    const receiveAllVideoFromServer = async () => {
+        console.log("Emitting createTransport for consuming ")
 
-        if (!device.current?.load) {
-            console.log('No device found exiting...');
-            return;
-        }
-        console.log('Created transports spec Received', data);
-        setTransportData(data)
+        socket.emit('createTransport', { consumer: true }, (data: any) => {
+            const recvTRansport = device.current.createRecvTransport(data);
+            recvTRansport.on('connect', async ({ dtlsParameters }, callback, errback) => {
+                console.log('Recv transport connect event fired internally');
+                try {
+                    console.log(`Emitting transportConnect event with id=${recvTRansport.id} and dtlsParameters`);
+                    socket.emit("transportConnect", {
+                        dtlsParameters: dtlsParameters,
+                        transportId: recvTRansport.id,
+                        consumer: true
+                    }, (stat: any) => {
+                        console.log("Got response from server for setting dtls on consumer transport", stat)
+                        callback()
+                    })
+                } catch (err) {
+                    console.log("Error occured", err)
+                    errback(err as Error)
+                }
+            });
 
-        await getAllConnectedUserInformation()
+            socket.emit('transportConsume', {
+                rtpCapabilities: device.current.rtpCapabilities,
+            }, async (consumeData: any) => {
+                console.log("Ready to consume")
+                console.log(consumeData)
 
-        // When transport specs are received start recvieving video 
-        // only send video if user enables video camera
-        await receiveAllVideoFromServer(data)
-    };
+                for (const obj of consumeData) {
 
-    const handleConnect = () => {
+                    const cnsumer = await recvTRansport.consume({
+                        id: obj.id,
+                        producerId: obj.producerId,
+                        kind: obj.kind,
+                        rtpParameters: obj.rtpParameters,
+                    })
+
+                    console.log("consumer created in client side", cnsumer)
+                    const { track } = cnsumer
+
+                    //if (secondVideoRef.current) {
+                    //    console.log("Second video track setting")
+                    //    secondVideoRef.current.srcObject = new MediaStream([track])
+
+                    socket.emit('resumeConsumeTransport', {
+                        consumerId: obj.id
+                    }, (status: any) => {
+                        console.log("Resume transport status" + status)
+                    })
+
+                    //}
+
+                }
+            });
+        })
+    }
+
+
+    const handleConnect = async () => {
         console.log('Socket connected with socket id:', socket.id);
         socket.emit('initialize', { id: id, userId: user?.id },
             (status: any) => {
@@ -227,13 +219,11 @@ export default function Component() {
 
         socket.on('connect', handleConnect);
         socket.on('RTPCapabilities', handleRTPCapabilities);
-        socket.on('TransportData', onCreateTransport);
 
         return () => {
             console.log('Cleaning up socket listeners...');
             socket.off('connect', handleConnect);
             socket.off('RTPCapabilities', handleRTPCapabilities);
-            socket.off('TransportData', onCreateTransport);
             if (socket.connected) {
                 socket.disconnect();
             }
@@ -327,7 +317,6 @@ export default function Component() {
     const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
         if (isScrolling && containerRef.current) {
             containerRef.current.scrollLeft -= e.movementX;
-            setScrollPosition(containerRef.current.scrollLeft);
         }
     };
     const currentParticipants = participants.slice(

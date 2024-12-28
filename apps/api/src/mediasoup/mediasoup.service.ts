@@ -24,6 +24,7 @@ type UserData = {
 type TransportData = {
     userId: string,
     transport: Transport,
+    consumer: boolean
 }
 
 type ProducerData = {
@@ -121,7 +122,7 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
         return room.router.rtpCapabilities
     }
 
-    async createTransport(roomId: string, userId: string) {
+    async createTransport(roomId: string, userId: string, isConsumer: boolean) {
         let room = this.rooms.get(roomId)
         if (!room) {
             throw new Error("Room not found for creating transport")
@@ -138,7 +139,8 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
 
         room.transports.set(transport.id, {
             userId: userId,
-            transport: transport
+            transport: transport,
+            consumer: isConsumer
         })
         room.users.get(userId)?.transportIds.push(transport.id)
 
@@ -150,7 +152,8 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
         };
     }
 
-    async setDtlsParameters(transportId: string, dtlsParameters: DtlsParameters, roomId: string) {
+    async setDtlsParameters(transportId: string, dtlsParameters: DtlsParameters, roomId: string,consumer:boolean) {
+
         let room = this.rooms.get(roomId)
         if (!room) {
             throw new Error("Room not found ")
@@ -158,6 +161,9 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
         let item = room.transports.get(transportId)
         if (!item) {
             throw new Error('Transport with id not found');
+        }
+        if(item.consumer !== consumer){
+            throw new Error("Invalid transport found")
         }
         await item.transport.connect({
             dtlsParameters: dtlsParameters
@@ -242,7 +248,8 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
                         id: consumer.id,
                         producerId: producerId,
                         kind: producer.kind,
-                        rtpParameters: consumer.rtpParameters
+                        rtpParameters: consumer.rtpParameters,
+                        userId: producer.userId
                     })
                 } catch (err) {
                     console.error(`Failed to create consumer for producer ${producerId}:`, err);
