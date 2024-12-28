@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect, use } from 'react';
 import { ChevronLeft, ChevronRight, Mic, MicOff, Video, VideoOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import * as mediasoupClient from 'mediasoup-client';
-import { Transport } from 'mediasoup-client/lib/types';
+import { RtpCapabilities, Transport, TransportOptions } from 'mediasoup-client/lib/types';
 import { useParams } from 'next/navigation';
 import useAuth from '@/hooks/useAuth';
 import socket from '@/lib/socket';
@@ -28,9 +28,9 @@ export default function Component() {
     const [scrollPosition, setScrollPosition] = useState(0);
     const [isScrolling, setIsScrolling] = useState(false);
     const [currentPage, setCurrentPage] = useState(0);
-    const myVideoRef = useRef<HTMLVideoElement>(null);
-    const secondVideoRef = useRef<HTMLVideoElement>(null);
     let device = useRef<mediasoupClient.Device>(new mediasoupClient.Device());
+    const [transportData, setTransportData] = useState<TransportOptions<mediasoupClient.types.AppData>>()
+
 
     const handleRTPCapabilities = async (data: any) => {
         if (!device.current?.loaded) {
@@ -42,15 +42,29 @@ export default function Component() {
         }
     };
 
-    const onCreateTransport = async (data: any) => {
-        if (!device.current?.load) {
-            console.log('No device found exiting...');
-            return;
+
+    const getUserMediaAndSend = async (sendTransport: Transport, videoTrack: MediaStreamTrack) => {
+        try {
+            const producer = await sendTransport.produce({
+                track: videoTrack,
+                encodings: [{ maxBitrate: 100000 }, { maxBitrate: 300000 }, { maxBitrate: 900000 }],
+                codecOptions: {
+                    videoGoogleStartBitrate: 1000,
+                },
+            });
+            console.log('Producer instaniated successfully', producer);
+        } catch (err) {
+            console.log(err);
         }
+    };
 
-        console.log('Created transports spec Received', data);
-        const sendTransport = device.current.createSendTransport(data);
 
+    const sendvideoToServer = async (videoTrack: MediaStreamTrack) => {
+        if (!transportData) {
+            console.log("Transport information not found ")
+            return
+        }
+        const sendTransport = device.current.createSendTransport(transportData);
         sendTransport.on('connect', async ({ dtlsParameters }, callback, errorback) => {
             try {
                 console.log('inside Send transport connect event ');
@@ -66,7 +80,6 @@ export default function Component() {
                 errorback(error as Error);
             }
         });
-
         sendTransport.on('produce', async (parameters, callback, errback) => {
             try {
                 socket.emit(
@@ -87,7 +100,10 @@ export default function Component() {
                 errback(err as Error);
             }
         });
+        getUserMediaAndSend(sendTransport, videoTrack)
+    }
 
+    const receiveAllVideoFromServer = async (data: TransportOptions<mediasoupClient.types.AppData>) => {
         const recvTRansport = device.current.createRecvTransport(data);
 
         recvTRansport.on('connect', async ({ dtlsParameters }, callback, errback) => {
@@ -122,66 +138,47 @@ export default function Component() {
 
                 console.log("consumer created in client side", cnsumer)
                 const { track } = cnsumer
-                if (secondVideoRef.current) {
-                    console.log("Second video track setting")
-                    secondVideoRef.current.srcObject = new MediaStream([track])
+                //if (secondVideoRef.current) {
+                //    console.log("Second video track setting")
+                //    secondVideoRef.current.srcObject = new MediaStream([track])
 
-                    socket.emit('resumeConsumeTransport', {
-                        consumerId: obj.id
-                    }, (status: any) => {
-                        console.log("Resume transport status" + status)
-                    })
+                //    socket.emit('resumeConsumeTransport', {
+                //        consumerId: obj.id
+                //    }, (status: any) => {
+                //        console.log("Resume transport status" + status)
+                //    })
 
-                }
+                //}
             }
         });
+    }
 
-        getUserMediaAndSend(sendTransport);
+
+
+    const onCreateTransport = async (data: any) => {
+        if (!device.current?.load) {
+            console.log('No device found exiting...');
+            return;
+        }
+        console.log('Created transports spec Received', data);
+        setTransportData(data)
+
+        // When transport specs are received start recvieving video 
+        // only send video if user enables video camera
+        await receiveAllVideoFromServer(data)
     };
 
     const handleConnect = () => {
         console.log('Socket connected with socket id:', socket.id);
-
         socket.emit('initialize', { id: id, userId: user?.id },
             (status: any) => {
                 console.log(status);
             },
         );
-
         console.log('Emitting getRTPCapabilities...');
         socket.emit('getRTPCapabilities', null);
     };
 
-    const getUserMediaAndSend = async (sendTransport: Transport) => {
-        try {
-            const mediaType = prompt("Do you want to share your camera or screen? (Enter 'camera' or 'screen')");
-            let stream;
-            if (mediaType === "camera") {
-                stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            } else if (mediaType === "screen") {
-                stream = await navigator.mediaDevices.getDisplayMedia({ video: true })
-            } else {
-                alert("Invalid choice. Please enter 'camera' or 'screen'.");
-                return;
-            }
-            if (myVideoRef.current) {
-                myVideoRef.current.srcObject = stream;
-            }
-            const videoTrack = stream.getVideoTracks()[0];
-            console.log("Media ready to produce, sendtransport connect event will be fired internally if this is first chunk")
-
-            const producer = await sendTransport.produce({
-                track: videoTrack,
-                encodings: [{ maxBitrate: 100000 }, { maxBitrate: 300000 }, { maxBitrate: 900000 }],
-                codecOptions: {
-                    videoGoogleStartBitrate: 1000,
-                },
-            });
-            console.log('Producer instaniated successfully', producer);
-        } catch (err) {
-            console.log(err);
-        }
-    };
 
     const addParticipant = (id: string, name: string) => {
         setParticipants(prev => [...prev, {
@@ -190,17 +187,16 @@ export default function Component() {
             videoOn: false,
             audioOn: false,
             track: undefined,
-            ref: React.createRef<HTMLVideoElement>() 
+            ref: React.createRef<HTMLVideoElement>()
         }]);
     };
 
     useEffect(() => {
-        console.log("Inside use effect")
         if (user == undefined || user == null) return
         if (id == undefined || id == null) return
 
-        console.log(user)
         addParticipant(user.id, user.name)
+
         socket.on('connect', handleConnect);
         socket.on('RTPCapabilities', handleRTPCapabilities);
         socket.on('TransportData', onCreateTransport);
@@ -212,10 +208,6 @@ export default function Component() {
             socket.off('TransportData', onCreateTransport);
             if (socket.connected) {
                 socket.disconnect();
-            }
-            if (myVideoRef.current?.srcObject) {
-                let stream = myVideoRef.current?.srcObject as MediaStream;
-                stream.getVideoTracks().forEach(track => track.stop());
             }
         };
     }, [user, id]);
@@ -235,7 +227,7 @@ export default function Component() {
 
     const handleMyVideoToggle = async () => {
         if (!user) return;
-        
+
         const index = participants.findIndex(obj => obj.id === user.id);
         if (index === -1) return;
 
@@ -246,16 +238,22 @@ export default function Component() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true });
                 const videoTrack = stream.getVideoTracks()[0];
-                
+                if (!videoTrack) {
+                    console.log("Cannot access camera")
+                    return
+                }
+
                 if (participant?.ref?.current) {
                     participant.ref.current.srcObject = stream;
                 }
-                
+
                 setParticipants(prevState => prevState.map(p =>
                     p.id === user.id
                         ? { ...p, videoOn: true, track: videoTrack }
                         : p
                 ));
+
+                await sendvideoToServer(videoTrack)
             } catch (error) {
                 console.error("Error accessing camera:", error);
             }
@@ -351,7 +349,7 @@ export default function Component() {
                                             <MicOff className="h-4 w-4 text-red-600" />
                                         )}
                                         {participant.videoOn ? (
-                                            <Video  className="h-4 w-4 text-green-600" />
+                                            <Video className="h-4 w-4 text-green-600" />
                                         ) : (
                                             <VideoOff className="h-4 w-4 text-red-600" />
                                         )}
