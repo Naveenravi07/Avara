@@ -12,7 +12,6 @@ import {
     Consumer,
 } from 'mediasoup/node/lib/types';
 import * as mediasoup from 'mediasoup';
-import { consumers } from 'stream';
 
 type UserData = {
     id: string,
@@ -131,7 +130,13 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
             throw new Error("Router not found inside room")
         }
         let transport = await room.router.createWebRtcTransport({
-            listenIps: [{ ip: '127.0.0.1' }],
+            listenInfos: [
+                {
+                    ip: "0.0.0.0",
+                    announcedIp: "192.168.0.111",
+                    protocol: "udp"
+                }
+            ],
             enableTcp: true,
             enableUdp: true,
             preferUdp: true,
@@ -152,7 +157,7 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
         };
     }
 
-    async setDtlsParameters(transportId: string, dtlsParameters: DtlsParameters, roomId: string,consumer:boolean) {
+    async setDtlsParameters(transportId: string, dtlsParameters: DtlsParameters, roomId: string, consumer: boolean) {
 
         let room = this.rooms.get(roomId)
         if (!room) {
@@ -162,7 +167,7 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
         if (!item) {
             throw new Error('Transport with id not found');
         }
-        if(item.consumer !== consumer){
+        if (item.consumer !== consumer) {
             throw new Error("Invalid transport found")
         }
         await item.transport.connect({
@@ -265,8 +270,6 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
             throw new Error("Room or router not found");
         }
         let consumer = room.consumers.get(consumerId)
-        console.log("Found consumer to be resumed")
-        console.log(consumers)
         await consumer?.consumer.resume()
         return true
     }

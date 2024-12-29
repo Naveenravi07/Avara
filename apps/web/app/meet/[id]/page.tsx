@@ -132,7 +132,10 @@ export default function Component() {
         console.log("Emitting createTransport for consuming ")
 
         socket.emit('createTransport', { consumer: true }, (data: any) => {
+
             const recvTRansport = device.current.createRecvTransport(data);
+
+            // Connect will be triggerd on the first call to recvTransport.consume()
             recvTRansport.on('connect', async ({ dtlsParameters }, callback, errback) => {
                 console.log('Recv transport connect event fired internally');
                 try {
@@ -154,34 +157,56 @@ export default function Component() {
             socket.emit('transportConsume', {
                 rtpCapabilities: device.current.rtpCapabilities,
             }, async (consumeData: any) => {
-                console.log("Ready to consume")
-                console.log(consumeData)
+                console.log("Ready to consume", consumeData);
 
-                for (const obj of consumeData) {
-
-                    const cnsumer = await recvTRansport.consume({
+                // Create an array to store all consumer operations
+                const consumerPromises = consumeData.map(obj =>
+                    recvTRansport.consume({
                         id: obj.id,
                         producerId: obj.producerId,
                         kind: obj.kind,
                         rtpParameters: obj.rtpParameters,
                     })
+                );
 
-                    console.log("consumer created in client side", cnsumer)
-                    const { track } = cnsumer
+                const consumers = await Promise.all(consumerPromises);
 
-                    //if (secondVideoRef.current) {
-                    //    console.log("Second video track setting")
-                    //    secondVideoRef.current.srcObject = new MediaStream([track])
+                // Create a map of userId to track for efficient lookup
+                const trackMap = new Map(
+                    consumers.map((consumer, index) => [
+                        consumeData[index].userId,
+                        consumer.track
+                    ])
+                );
 
+                // Single state update with all changes
+                setParticipants(prevParticipants => {
+                    return prevParticipants.map(participant => {
+                        const track = trackMap.get(participant.id);
+                        if (track) {
+                            console.log("Track found for userid=",participant.id)
+                            const stream = new MediaStream([track]);
+                            if (participant.ref.current) {
+                                participant.ref.current.srcObject = stream;
+                               participant.ref.current.play().catch((e)=>console.log("Error on playing stream ",e))
+                            }
+                            return {
+                                ...participant,
+                                videoOn: true,
+                                track: track
+                            };
+                        }
+                        return participant;
+                    });
+                });
+
+                consumeData.forEach((obj: any) => {
+                    console.log(obj)
                     socket.emit('resumeConsumeTransport', {
                         consumerId: obj.id
-                    }, (status: any) => {
-                        console.log("Resume transport status" + status)
                     })
+                })
 
-                    //}
-
-                }
             });
         })
     }
@@ -356,6 +381,7 @@ export default function Component() {
                                     playsInline
                                     muted={participant.id === user?.id}
                                     className="w-full h-full object-cover"
+                                    style={{ display: participant.videoOn ? 'block' : 'none' }}
                                 />
                                 <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between bg-white bg-opacity-80 rounded px-2 py-1">
                                     <span className="text-sm font-medium">{participant.name}</span>
