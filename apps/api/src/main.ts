@@ -5,7 +5,6 @@ import session from 'express-session';
 import passport from 'passport';
 import { ConfigService } from '@nestjs/config';
 import cookieParser from 'cookie-parser';
-import { DrizzleExceptionFilter } from 'comon/filters/db-execption-filter';
 
 async function bootstrap() {
     const app = await NestFactory.create(AppModule);
@@ -18,6 +17,7 @@ async function bootstrap() {
             'http://localhost:5000',
             'http://127.0.0.1:5000',
             'http://0.0.0.0:5000',
+            'http://192.168.0.110:5000',
         ],
         credentials: true,
         methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],

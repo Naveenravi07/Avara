@@ -54,6 +54,7 @@ export class MediasoupGateway implements OnGatewayConnection,OnGatewayDisconnect
     @SubscribeMessage('transportConnect')
     async transportConnect(@ConnectedSocket() client: Socket, @MessageBody() payload: any) {
         await this.MediasoupService.setDtlsParameters(payload.transportId, payload.dtlsParameters,client.data.roomId,payload.consumer);
+        return true
     }
 
     @SubscribeMessage('transportProduce')

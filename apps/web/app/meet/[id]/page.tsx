@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, Consumer } from 'react';
 import { ChevronLeft, ChevronRight, Mic, MicOff, Video, VideoOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import * as mediasoupClient from 'mediasoup-client';
@@ -27,7 +27,7 @@ export default function Component() {
     const containerRef = useRef<HTMLDivElement>(null);
     const [isScrolling, setIsScrolling] = useState(false);
     const [currentPage, setCurrentPage] = useState(0);
-    let device = useRef<mediasoupClient.Device>(new mediasoupClient.Device());
+    const device = useRef<mediasoupClient.Device | null>(null);
 
 
     const getAllConnectedUserInformation = async () => {
@@ -55,7 +55,8 @@ export default function Component() {
 
 
     const handleRTPCapabilities = async (data: any) => {
-        if (!device.current?.loaded) {
+        if (!device.current) return
+        if (!device.current.loaded) {
             console.log('Received RTP Capabilities:', data.data);
             var cap = { routerRtpCapabilities: data.data };
             await device.current.load(cap);
@@ -74,7 +75,9 @@ export default function Component() {
                     videoGoogleStartBitrate: 1000,
                 },
             });
+
             console.log('Producer instaniated successfully', producer);
+            console.log('Producer instaniated successfully', await producer.getStats());
         } catch (err) {
             console.log(err);
         }
@@ -85,6 +88,7 @@ export default function Component() {
         console.log("Emitting createTransport for producing ")
         socket.emit('createTransport', { consumer: false }, (transportData: any) => {
 
+            if (!device.current) return
             const sendTransport = device.current.createSendTransport(transportData);
             sendTransport.on('connect', async ({ dtlsParameters }, callback, errorback) => {
                 try {
@@ -96,8 +100,10 @@ export default function Component() {
                         transportId: sendTransport.id,
                         dtlsParameters: dtlsParameters,
                         consumer: false
+                    }, (data: any) => {
+                        console.log("Server acknowledged transportConnect ")
+                        callback();
                     });
-                    callback();
                 } catch (error) {
                     errorback(error as Error);
                 }
@@ -132,7 +138,10 @@ export default function Component() {
         console.log("Emitting createTransport for consuming ")
 
         socket.emit('createTransport', { consumer: true }, (data: any) => {
+            if (!device.current) return
             const recvTRansport = device.current.createRecvTransport(data);
+
+            // Connect will be triggerd on the first call to recvTransport.consume()
             recvTRansport.on('connect', async ({ dtlsParameters }, callback, errback) => {
                 console.log('Recv transport connect event fired internally');
                 try {
@@ -151,43 +160,86 @@ export default function Component() {
                 }
             });
 
+            // Fetching consumer info after consuming each of the producers on room
             socket.emit('transportConsume', {
                 rtpCapabilities: device.current.rtpCapabilities,
             }, async (consumeData: any) => {
-                console.log("Ready to consume")
-                console.log(consumeData)
+                console.log("Ready to consume", consumeData);
 
+                // Create an array to store all consumer operations
+                const consumers: any[] = []
                 for (const obj of consumeData) {
-
-                    const cnsumer = await recvTRansport.consume({
+                    let consumer = await recvTRansport.consume({
                         id: obj.id,
                         producerId: obj.producerId,
                         kind: obj.kind,
                         rtpParameters: obj.rtpParameters,
                     })
+                    consumers.push(consumer)
+                }
 
-                    console.log("consumer created in client side", cnsumer)
-                    const { track } = cnsumer
+                console.log(consumers)
 
-                    //if (secondVideoRef.current) {
-                    //    console.log("Second video track setting")
-                    //    secondVideoRef.current.srcObject = new MediaStream([track])
 
+                // Create a map of userId to track for efficient lookup
+                const trackMap = new Map(
+                    consumers.map((consumer, index) => [
+                        consumeData[index].userId,
+                        consumer.track
+                    ])
+                );
+                console.log(trackMap)
+                // Single state update with all changes
+
+                for (const obj of consumers) {
                     socket.emit('resumeConsumeTransport', {
                         consumerId: obj.id
-                    }, (status: any) => {
-                        console.log("Resume transport status" + status)
+                    }, (cb) => {
+                        console.log("GOt acknowledged from server ")
                     })
-
-                    //}
-
                 }
+
+                setParticipants(prevParticipants => {
+                    let newP = prevParticipants.map(participant => {
+                        const track = trackMap.get(participant.id);
+                        if (track) {
+
+                            console.log("Track found for userid=", participant.id)
+                            const stream = new MediaStream([track]);
+
+                            if (participant.ref.current) {
+                                console.log("Setting src object ")
+                                console.log("Track = ", track)
+                                participant.ref.current.id = participant.name
+                                participant.ref.current.autoplay = true
+                                participant.ref.current.srcObject = stream;
+                                participant.ref.current.play()
+                            }
+
+                            return {
+                                ...participant,
+                                videoOn: true,
+                                track: track
+                            };
+                        }
+                        console.log("Track not found for user ", participant.id)
+                        return participant;
+                    });
+                    console.log(newP)
+                    return newP
+                });
+
+
             });
         })
     }
 
 
     const handleConnect = async () => {
+        if (!device.current) {
+            device.current = new mediasoupClient.Device();
+            console.log("initialized device")
+        }
         console.log('Socket connected with socket id:', socket.id);
         socket.emit('initialize', { id: id, userId: user?.id },
             (status: any) => {
@@ -211,6 +263,9 @@ export default function Component() {
     };
 
     useEffect(() => {
+        if (typeof window !== 'undefined') {
+            window.localStorage.setItem("debug", "*")
+        }
         if (user == undefined || user == null) return
         if (id == undefined || id == null) return
 
@@ -226,6 +281,10 @@ export default function Component() {
             socket.off('RTPCapabilities', handleRTPCapabilities);
             if (socket.connected) {
                 socket.disconnect();
+            }
+
+            if (device.current) {
+                device.current = null;
             }
         };
     }, [user, id]);
@@ -291,6 +350,9 @@ export default function Component() {
     };
 
 
+    useEffect(() => {
+        console.log("Participant updated")
+    }, [participants])
 
     ///     UI Controls Start (please just dot touch this)
     const totalPages = Math.ceil(participants.length / participantsPerPage);
@@ -323,6 +385,7 @@ export default function Component() {
         currentPage * participantsPerPage,
         (currentPage + 1) * participantsPerPage,
     );
+    console.log("currentParticipants = ", currentParticipants)
     const handleNextPage = () => {
         setCurrentPage(prevPage => (prevPage + 1) % totalPages);
     };
@@ -352,8 +415,11 @@ export default function Component() {
                             >
                                 <video
                                     ref={participant.ref}
-                                    autoPlay
-                                    playsInline
+                                    onLoadedMetadata={async (e) => {
+                                        console.log("Video metadata loaded")
+                                        console.log(e)
+                                        await e.currentTarget.play()
+                                    }}
                                     muted={participant.id === user?.id}
                                     className="w-full h-full object-cover"
                                 />
