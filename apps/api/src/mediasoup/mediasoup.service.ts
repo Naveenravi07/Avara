@@ -1,4 +1,4 @@
-import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import {
     Worker,
     Router,
@@ -12,6 +12,8 @@ import {
     Consumer,
 } from 'mediasoup/node/lib/types';
 import * as mediasoup from 'mediasoup';
+import { warn } from 'console';
+
 
 type UserData = {
     id: string,
@@ -51,12 +53,13 @@ type Room = {
 
 @Injectable()
 export class MediasoupService implements OnModuleInit, OnModuleDestroy {
-    private worker!: Worker;
+    private worker: Worker | undefined
     private rooms: Map<string, Room> = new Map()
 
     async onModuleInit() {
+        if (this.worker) return
         this.worker = await mediasoup.createWorker({
-            logLevel: 'warn',
+            logLevel: "warn",
             appData: { foo: 123 },
         });
         this.worker.on('died', () => {
@@ -95,11 +98,14 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
 
     async getRouterCapabilities(roomId: string): Promise<RtpCapabilities> {
         let room = this.rooms.get(roomId)
+        if (!this.worker) {
+            throw new Error("Worker not found exiting..")
+        }
         if (!room) {
             throw new Error("Room not found exiting..")
         }
         if (!room.router) {
-            room.router = await this.worker.createRouter({
+            room.router = await this.worker?.createRouter({
                 mediaCodecs: [
                     {
                         kind: 'audio',
@@ -132,15 +138,24 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
         let transport = await room.router.createWebRtcTransport({
             listenInfos: [
                 {
-                    ip: "0.0.0.0",
-                    announcedIp: "192.168.0.111",
-                    protocol: "udp"
+                    protocol: 'udp',
+                    ip: '0.0.0.0',
+                    announcedAddress: '192.168.0.110',
+                    portRange: { min: 40000, max: 40100 }
+                },
+                {
+                    protocol: 'tcp',
+                    ip: '0.0.0.0',
+                    announcedAddress: '192.168.0.110',
+                    portRange: { min: 40000, max: 40100 }
                 }
             ],
-            enableTcp: true,
             enableUdp: true,
+            enableTcp: true,
             preferUdp: true,
-        })
+            iceConsentTimeout: 20,
+            initialAvailableOutgoingBitrate: 1000000
+        });
 
         room.transports.set(transport.id, {
             userId: userId,
@@ -170,9 +185,12 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
         if (item.consumer !== consumer) {
             throw new Error("Invalid transport found")
         }
+        console.log("[INFO] Setting dtls params for transport ", item.transport.id)
+        Array.from(room.transports).map(obj => console.log(`userid = ${obj[1].userId}, transport = ${obj[1].transport.id} Consumer = ${obj[1].consumer}`))
         await item.transport.connect({
             dtlsParameters: dtlsParameters
         });
+        return true
     }
 
     async createProducerFromTransport(data: any, roomId: string, userId: string) {
@@ -198,6 +216,8 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
             appData: appData || {},
         });
 
+        console.log("Producer created for User = ",userId,"Producerid = ",producer.id,"Transportid = ",transport.transport.id)
+
         room.producers.set(producer.id, {
             producer: producer,
             transportId: transport.transport.id,
@@ -216,10 +236,10 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
         if (!room || !room.router) {
             throw new Error("Room or router not found");
         }
-
+        console.log("Creating consumers for user with id = ", userId)
         let consumersInfo: any[] = []
         for (const user of room.users.values()) {
-            if (user.id === userId) continue;
+            if (user.id === userId) continue; // Skip consuming my own producers
 
             for (const producerId of user.producersIds) {
                 const producer = room.producers.get(producerId);
@@ -230,6 +250,7 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
                     continue;
                 }
 
+                console.log("Prepping to consume producer of id =", producerId, "Transport id = ", producer.transportId, "For user id = ", user.id)
                 const transport = room.transports.get(producer.transportId);
                 if (!transport) {
                     console.error(`Transport not found for producer ${producerId}`);
@@ -241,6 +262,8 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
                         rtpCapabilities,
                         paused: true,
                     });
+
+                    console.log("Found transport for consuming; Producerid=",producerId,"Consumerid =",consumer.id, "Userid =",userId)
 
                     user.consumersIds.push(consumer.id);
                     room.consumers.set(consumer.id, {
@@ -270,6 +293,7 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
             throw new Error("Room or router not found");
         }
         let consumer = room.consumers.get(consumerId)
+        console.log("Resuming consumer from server")
         await consumer?.consumer.resume()
         return true
     }
@@ -289,6 +313,7 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
     }
 
     onModuleDestroy() {
-        this.worker.close();
+        console.log("Destroying Mediasoup Service")
+        this.worker?.close();
     }
 }

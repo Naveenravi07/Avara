@@ -17,7 +17,7 @@ async function bootstrap() {
             'http://localhost:5000',
             'http://127.0.0.1:5000',
             'http://0.0.0.0:5000',
-            'http://192.168.0.111:5000',
+            'http://192.168.0.110:5000',
         ],
         credentials: true,
         methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
