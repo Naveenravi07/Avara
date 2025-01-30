@@ -1,33 +1,26 @@
 'use client';
 
-import React, { useState, useRef, useEffect, Consumer } from 'react';
-import { ChevronLeft, ChevronRight, Mic, MicOff, Video, VideoOff } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import React, { useState, useRef, useEffect } from 'react';
 import * as mediasoupClient from 'mediasoup-client';
-import { Transport, TransportOptions } from 'mediasoup-client/lib/types';
+import { Transport } from 'mediasoup-client/lib/types';
 import { useParams } from 'next/navigation';
 import useAuth from '@/hooks/useAuth';
 import socket from '@/lib/socket';
+import { Participant } from "../types"
+import { ViewParticipants } from './participants';
+import { VideoControls } from './controls';
 
-type Participant = {
-    id: string;
-    name: string;
-    videoOn: boolean;
-    audioOn: boolean;
-    ref: React.RefObject<HTMLVideoElement>;
-    track: MediaStreamTrack | undefined
-};
-
-const participantsPerPage = 6;
 
 export default function Component() {
     const { user } = useAuth()
     const { id } = useParams();
     const [participants, setParticipants] = useState<Participant[]>([]);
     const containerRef = useRef<HTMLDivElement>(null);
-    const [isScrolling, setIsScrolling] = useState(false);
     const [currentPage, setCurrentPage] = useState(0);
     const device = useRef<mediasoupClient.Device | null>(null);
+
+    // Storing recvTransportRef seperate since creating a recv transport is only a one step 
+    // process but we need it each time when consuming a transport or video
     const recvTransportRef = useRef<Transport | null>(null);
 
 
@@ -437,127 +430,12 @@ export default function Component() {
     };
 
 
-    useEffect(() => {
-        console.log("Participant updated")
-    }, [participants])
-
-    ///     UI Controls Start (please just dot touch this)
-    const totalPages = Math.ceil(participants.length / participantsPerPage);
-    const getGridClass = (count: number) => {
-        if (count <= 2) return 'grid-cols-1 sm:grid-cols-2';
-        if (count <= 4) return 'grid-cols-2';
-        if (count <= 6) return 'grid-cols-2 sm:grid-cols-3';
-        return 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4';
-    };
-    const handleMouseDown = () => {
-        if (containerRef.current) {
-            setIsScrolling(true);
-            containerRef.current.style.cursor = 'grabbing';
-            containerRef.current.style.userSelect = 'none';
-        }
-    };
-    const handleMouseUp = () => {
-        if (containerRef.current) {
-            setIsScrolling(false);
-            containerRef.current.style.cursor = 'grab';
-            containerRef.current.style.removeProperty('user-select');
-        }
-    };
-    const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-        if (isScrolling && containerRef.current) {
-            containerRef.current.scrollLeft -= e.movementX;
-        }
-    };
-    const currentParticipants = participants.slice(
-        currentPage * participantsPerPage,
-        (currentPage + 1) * participantsPerPage,
-    );
-    const handleNextPage = () => {
-        setCurrentPage(prevPage => (prevPage + 1) % totalPages);
-    };
-    const handlePrevPage = () => {
-        setCurrentPage(prevPage => (prevPage - 1 + totalPages) % totalPages);
-    };
-
-    ///     UI Controls end 
 
 
     return (
         <div className="flex flex-col h-[calc(100vh-4rem)] bg-white text-gray-800">
-            <div className="flex-grow overflow-hidden">
-                <div
-                    ref={containerRef}
-                    className="h-full overflow-x-auto scrollbar-hide cursor-grab"
-                    onMouseDown={handleMouseDown}
-                    onMouseUp={handleMouseUp}
-                    onMouseMove={handleMouseMove}
-                    onMouseLeave={handleMouseUp}
-                >
-                    <div className={`grid ${getGridClass(currentParticipants.length)} gap-4 h-full p-4`}>
-                        {currentParticipants.map((participant, i) => (
-                            <div
-                                key={participant.id}
-                                className="relative bg-gray-200 rounded-lg overflow-hidden shadow-md"
-                            >
-                                <video
-                                    ref={participant.ref}
-                                    onLoadedMetadata={async (e) => {
-                                        console.log("Video metadata loaded")
-                                        console.log(e)
-                                        await e.currentTarget.play()
-                                    }}
-                                    muted={participant.id === user?.id}
-                                    className="w-full h-full object-cover"
-                                />
-                                <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between bg-white bg-opacity-80 rounded px-2 py-1">
-                                    <span className="text-sm font-medium">{participant.name}</span>
-                                    <div className="flex space-x-1">
-                                        {participant.audioOn ? (
-                                            <Mic className="h-4 w-4 text-green-600" />
-                                        ) : (
-                                            <MicOff className="h-4 w-4 text-red-600" />
-                                        )}
-                                        {participant.videoOn ? (
-                                            <Video className="h-4 w-4 text-green-600" />
-                                        ) : (
-                                            <VideoOff className="h-4 w-4 text-red-600" />
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </div>
-            <div className="h-20 bg-gray-100 flex items-center justify-center space-x-4 px-4 shadow-md">
-                <Button variant="outline" size="icon" onClick={handleMyAudioToggle}>
-                    {(() => {
-                        const isAudioOn = participants.find(obj => obj.id === user?.id)?.audioOn;
-                        return isAudioOn ? (
-                            <Mic className="h-4 w-4 text-green-600" />
-                        ) : (
-                            <MicOff className="h-4 w-4 text-red-600" />
-                        );
-                    })()}
-                </Button>
-                <Button variant="outline" size="icon" onClick={handleMyVideoToggle}>
-                    {(() => {
-                        const isVideoOn = participants.find(obj => obj.id === user?.id)?.videoOn;
-                        return isVideoOn ? (
-                            <Video className="h-4 w-4 text-green-600" />
-                        ) : (
-                            <VideoOff className="h-4 w-4 text-red-600" />
-                        );
-                    })()}
-                </Button>
-
-                <Button variant="secondary" size="icon" onClick={handlePrevPage} disabled={totalPages <= 1}>
-                    <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <Button variant="secondary" size="icon" onClick={handleNextPage} disabled={totalPages <= 1}>
-                    <ChevronRight className="h-4 w-4" />
-                </Button>
-            </div>
+            <ViewParticipants containerRef={containerRef} user={user!} participants={participants} />
+            <VideoControls user={user!} participants={participants} setCurrentPage={setCurrentPage} handleMyAudioToggle={handleMyAudioToggle} handleMyVideoToggle={handleMyVideoToggle} />
         </div>
     );
 }
