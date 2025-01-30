@@ -28,6 +28,7 @@ export default function Component() {
     const [isScrolling, setIsScrolling] = useState(false);
     const [currentPage, setCurrentPage] = useState(0);
     const device = useRef<mediasoupClient.Device | null>(null);
+    const recvTransportRef = useRef<Transport | null>(null);
 
 
     const getAllConnectedUserInformation = async () => {
@@ -134,35 +135,42 @@ export default function Component() {
 
 
 
+    const setupRecvTransport = (transportData: any) => {
+        if (!device.current) return;
+        const recvTransport = device.current.createRecvTransport(transportData);
+        recvTransportRef.current = recvTransport;
+
+        recvTransport.on('connect', async ({ dtlsParameters }, callback, errback) => {
+            console.log('Recv transport connect event fired internally');
+            try {
+                console.log(`Emitting transportConnect event with id=${recvTransport.id} and dtlsParameters`);
+                socket.emit("transportConnect", {
+                    dtlsParameters: dtlsParameters,
+                    transportId: recvTransport.id,
+                    consumer: true
+                }, (stat: any) => {
+                    console.log("Got response from server for setting dtls on consumer transport", stat)
+                    callback()
+                })
+            } catch (err) {
+                console.log("Error occurred", err)
+                errback(err as Error)
+            }
+        });
+
+        return recvTransport;
+    };
+
+
     const receiveAllVideoFromServer = async () => {
         console.log("Emitting createTransport for consuming ")
 
         socket.emit('createTransport', { consumer: true }, (data: any) => {
-            if (!device.current) return
-            const recvTRansport = device.current.createRecvTransport(data);
+            const recvTRansport = setupRecvTransport(data);
+            if (!recvTRansport) return;
 
-            // Connect will be triggerd on the first call to recvTransport.consume()
-            recvTRansport.on('connect', async ({ dtlsParameters }, callback, errback) => {
-                console.log('Recv transport connect event fired internally');
-                try {
-                    console.log(`Emitting transportConnect event with id=${recvTRansport.id} and dtlsParameters`);
-                    socket.emit("transportConnect", {
-                        dtlsParameters: dtlsParameters,
-                        transportId: recvTRansport.id,
-                        consumer: true
-                    }, (stat: any) => {
-                        console.log("Got response from server for setting dtls on consumer transport", stat)
-                        callback()
-                    })
-                } catch (err) {
-                    console.log("Error occured", err)
-                    errback(err as Error)
-                }
-            });
-
-            // Fetching consumer info after consuming each of the producers on room
             socket.emit('transportConsume', {
-                rtpCapabilities: device.current.rtpCapabilities,
+                rtpCapabilities: device.current!.rtpCapabilities
             }, async (consumeData: any) => {
                 console.log("Ready to consume", consumeData);
 
@@ -229,10 +237,84 @@ export default function Component() {
                     return newP
                 });
 
-
             });
         })
     }
+
+
+
+    const consumeNewlyJoinedConsumer = async (data: any) => {
+        if (!device.current || !recvTransportRef.current) {
+            console.log("Device or receive transport not ready");
+            return;
+        }
+        console.log("New User joined; Lemme consume him ")
+        console.log(data)
+        try {
+            const consumer = await recvTransportRef.current.consume({
+                id: data.id,
+                producerId: data.producerId,
+                kind: data.kind,
+                rtpParameters: data.rtpParameters,
+            });
+
+            socket.emit('resumeConsumeTransport', {
+                consumerId: consumer.id
+            }, (cb) => {
+                console.log("Got acknowledged from server");
+            });
+
+            setParticipants(prevParticipants => {
+                return prevParticipants.map(participant => {
+                    if (participant.id === data.userId) {
+                        const stream = new MediaStream([consumer.track]);
+
+                        if (participant.ref.current) {
+                            participant.ref.current.srcObject = stream;
+                            participant.ref.current.autoplay = true;
+                            participant.ref.current.play();
+                        }
+
+                        return {
+                            ...participant,
+                            videoOn: true,
+                            track: consumer.track
+                        };
+                    }
+                    return participant;
+                });
+            });
+        } catch (error) {
+            console.error('Error consuming new producer:', error);
+        }
+    }
+
+    const onNewProducerAdded = async (data: any) => {
+        let { userId, producerId }: { userId: string, producerId: string } = data;
+        console.log("Some new producer just get creatd somewhere", data)
+
+        socket.emit('consumeNewUser', {
+            rtpCapabilities: device.current!.rtpCapabilities,
+            newUserId: userId,
+            producerId: producerId
+        }, async (consumersInfo: any) => {
+
+            console.log("Consumer created at server")
+            console.log(consumersInfo)
+            for (const data of consumersInfo) {
+                await consumeNewlyJoinedConsumer(data)
+            }
+
+        })
+    }
+
+
+
+    const onNewMemberJoined = async (data: any) => {
+        addParticipant(data.userId, data.name)
+        console.log("New user just joined;", data)
+    }
+
 
 
     const handleConnect = async () => {
@@ -274,11 +356,16 @@ export default function Component() {
 
         socket.on('connect', handleConnect);
         socket.on('RTPCapabilities', handleRTPCapabilities);
+        socket.on('newUserJoined', onNewMemberJoined)
+        socket.on('newProducer', onNewProducerAdded)
 
         return () => {
             console.log('Cleaning up socket listeners...');
             socket.off('connect', handleConnect);
             socket.off('RTPCapabilities', handleRTPCapabilities);
+            socket.off('newUserJoined', onNewMemberJoined)
+            socket.off('newProducer', onNewProducerAdded)
+
             if (socket.connected) {
                 socket.disconnect();
             }
@@ -385,7 +472,6 @@ export default function Component() {
         currentPage * participantsPerPage,
         (currentPage + 1) * participantsPerPage,
     );
-    console.log("currentParticipants = ", currentParticipants)
     const handleNextPage = () => {
         setCurrentPage(prevPage => (prevPage + 1) % totalPages);
     };

@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import {
     Worker,
     Router,
@@ -12,7 +12,6 @@ import {
     Consumer,
 } from 'mediasoup/node/lib/types';
 import * as mediasoup from 'mediasoup';
-import { warn } from 'console';
 
 
 type UserData = {
@@ -226,7 +225,7 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
         })
 
         room.users.get(userId)?.producersIds.push(producer.id)
-        return { id: producer.id };
+        return { id: producer.id,userId:userId };
     }
 
     async createConsumerFromTransport(data: any, roomId: string, userId: string) {
@@ -245,7 +244,7 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
 
         let myTransport = myData.transportIds.map((tid) => room.transports.get(tid))
         let myConsumeTransport = myTransport?.filter((obj) => obj?.consumer == true);
-        console.log("Found MyConsume transport info; Transport id ",myConsumeTransport)
+        console.log("Found MyConsume transport info; Transport id ", myConsumeTransport)
         let myConsumeRecvTrans = myConsumeTransport[0]?.transport.id
 
         let consumersInfo: any[] = []
@@ -263,7 +262,7 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
                 }
 
                 console.log("Prepping to consume producer of id =", producerId, "Transport id = ", myConsumeRecvTrans, "For user id = ", myConsumeTransport[0]?.userId)
-                if(!myConsumeRecvTrans){
+                if (!myConsumeRecvTrans) {
                     throw new Error("Failed to get the transport id ")
                 }
                 const transport = room.transports.get(myConsumeRecvTrans);
@@ -302,6 +301,69 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
         return consumersInfo
     }
 
+
+    async consumeSingleUser(data: any, roomId: string, my_uid: string, newUserId: string) {
+        const { rtpCapabilities }: { rtpCapabilities: RtpCapabilities } = data;
+        const room = this.rooms.get(roomId);
+
+        if (!room || !room.router) {
+            throw new Error("Room or router not found");
+        }
+        console.log("Creating consumers for user with id = ", my_uid)
+
+        let myData = room.users.get(my_uid);
+        if (!myData) {
+            throw new Error("Failed to get transport data");
+        }
+
+        let myTransport = myData.transportIds.map((tid) => room.transports.get(tid))
+        let myConsumeTransport = myTransport?.filter((obj) => obj?.consumer == true);
+        console.log("Found MyConsume transport info; Transport id ", myConsumeTransport)
+        let myConsumeRecvTrans = myConsumeTransport[0]?.transport
+
+        if (!myConsumeRecvTrans) {
+            throw new Error("Failed to get your transport data")
+        }
+
+        let pro = room.users.get(newUserId)?.producersIds
+        let prodDatas = pro?.map((id) => room.producers.get(id))
+        if (!prodDatas) {
+            throw new Error("Failed to get producer information")
+        }
+
+        let consumeInfo: any[] = []
+
+        for (const producer of prodDatas) {
+            let id = producer?.producer.id
+            if (!id) {
+                return
+            }
+            let consumer = await myConsumeRecvTrans.consume({
+                producerId: id,
+                paused: true,
+                rtpCapabilities: rtpCapabilities
+            })
+
+            myData.consumersIds.push(consumer.id)
+            room.consumers.set(consumer.id, {
+                consumer,
+                producerId:id,
+                transportId: myConsumeRecvTrans.id,
+                userId: my_uid,
+            });
+            consumeInfo.push({
+                id: consumer.id,
+                producerId: id,
+                kind: producer?.kind,
+                rtpParameters: consumer.rtpParameters,
+                userId: newUserId
+            })
+        }
+        return consumeInfo
+    }
+
+
+
     async resumeConsumerTransport(roomId: string, consumerId: string) {
         const room = this.rooms.get(roomId);
         if (!room || !room.router) {
@@ -312,6 +374,7 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
         await consumer?.consumer.resume()
         return true
     }
+
 
     async getAllUserDetailsInRoom(roomId: string) {
         let room = this.rooms.get(roomId)
@@ -326,6 +389,7 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
         })
         return users
     }
+
 
     onModuleDestroy() {
         console.log("Destroying Mediasoup Service")
