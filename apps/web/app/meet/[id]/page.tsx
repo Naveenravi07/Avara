@@ -382,6 +382,55 @@ export default function Component() {
         });
     };
 
+    const handleMyScreenVideoToggle = async() =>{
+        if (!user) return;
+
+        const index = participants.findIndex(obj => obj.id === user.id);
+        if (index === -1) return;
+
+        const participant = participants[index];
+        const isVideoOn = !participant?.videoOn;
+
+        if (isVideoOn) {
+            try {
+                const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                const videoTrack = stream.getVideoTracks()[0];
+                if (!videoTrack) {
+                    console.log("Cannot access camera")
+                    return
+                }
+
+                if (participant?.ref?.current) {
+                    participant.ref.current.srcObject = stream;
+                }
+
+                setParticipants(prevState => prevState.map(p =>
+                    p.id === user.id
+                        ? { ...p, videoOn: true, track: videoTrack }
+                        : p
+                ));
+
+                await sendvideoToServer(videoTrack)
+            } catch (error) {
+                console.error("Error accessing camera:", error);
+            }
+        } else {
+            if (participant.track) {
+                participant.track.stop();
+            }
+            if (participant.ref?.current) {
+                participant.ref.current.srcObject = null;
+            }
+            setParticipants(prevState => prevState.map(p =>
+                p.id === user.id
+                    ? { ...p, videoOn: false, track: undefined }
+                    : p
+            ));
+        }
+    }
+
+
+
     const handleMyVideoToggle = async () => {
         if (!user) return;
 
@@ -431,11 +480,17 @@ export default function Component() {
 
 
 
-
     return (
         <div className="flex flex-col h-[calc(100vh-4rem)] bg-white text-gray-800">
             <ViewParticipants containerRef={containerRef} user={user!} participants={participants} />
-            <VideoControls user={user!} participants={participants} setCurrentPage={setCurrentPage} handleMyAudioToggle={handleMyAudioToggle} handleMyVideoToggle={handleMyVideoToggle} />
+            <VideoControls 
+                user={user!} 
+                participants={participants}
+                setCurrentPage={setCurrentPage} 
+                handleMyAudioToggle={handleMyAudioToggle} 
+                handleMyVideoToggle={handleMyVideoToggle}
+                handleMyScreenVideoToggle={handleMyScreenVideoToggle}
+        />
         </div>
     );
 }

@@ -3,9 +3,9 @@ import { Participant, participantsPerPage } from "../types"
 import { ChevronLeft, ChevronRight, Mic, MicOff, Video, VideoOff } from 'lucide-react';
 import { User } from "@/types/user/user";
 
-export function VideoControls({ participants, handleMyAudioToggle, handleMyVideoToggle, setCurrentPage, user }
+export function VideoControls({ participants, handleMyAudioToggle, handleMyVideoToggle, setCurrentPage, user,handleMyScreenVideoToggle }
     : {
-        setCurrentPage: React.Dispatch<React.SetStateAction<number>>, participants: Participant[], user: User, handleMyAudioToggle: () => void, handleMyVideoToggle: () => Promise<void>
+        setCurrentPage: React.Dispatch<React.SetStateAction<number>>, participants: Participant[], user: User, handleMyAudioToggle: () => void, handleMyVideoToggle: () => Promise<void>,handleMyScreenVideoToggle:()=>Promise<void>
     }
 ) {
     const totalPages = Math.ceil(participants.length / participantsPerPage);
