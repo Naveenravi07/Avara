@@ -6,6 +6,9 @@ export class MediasoupHandler {
     private device: mediasoupClient.Device | null = null;
     private recvTransport: Transport | null = null;
     private sendTransport: Transport | null = null;
+    private v_producer:mediasoupClient.types.Producer<mediasoupClient.types.AppData> | undefined
+    private a_producer:mediasoupClient.types.Producer<mediasoupClient.types.AppData> | undefined
+
 
     constructor() {
         this.device = new mediasoupClient.Device();
@@ -29,7 +32,7 @@ export class MediasoupHandler {
         return this.device?.rtpCapabilities
     }
 
-    public async createSendTransport(videoTrack: MediaStreamTrack): Promise<void> {
+    public async createSendTransport(): Promise<void> {
         if (!this.device) return;
 
         return new Promise(async (resolve, reject) => {
@@ -51,6 +54,7 @@ export class MediasoupHandler {
                 });
 
                 this.sendTransport.on('produce', async (parameters, callback, errback) => {
+                    console.log("Produce call for a track with kind",parameters.kind)
                     try {
                         socket.emit('transportProduce', {
                             transportId: this.sendTransport!.id,
@@ -65,16 +69,20 @@ export class MediasoupHandler {
                     }
                 });
 
-                await this.produceVideo(this.sendTransport, videoTrack).then(resolve).catch(reject);
             });
+            resolve()
         });
     }
 
 
 
-    private async produceVideo(sendTransport: Transport, videoTrack: MediaStreamTrack): Promise<void> {
+    public async produceVideo(videoTrack: MediaStreamTrack): Promise<void> {
         try {
-            const producer = await sendTransport.produce({
+            if(!this.sendTransport){
+                console.log("No Send Transport found for producing Video")
+                return
+            }
+            const producer = await this.sendTransport.produce({
                 track: videoTrack,
                 encodings: [
                     { maxBitrate: 100000 },
@@ -85,6 +93,7 @@ export class MediasoupHandler {
                     videoGoogleStartBitrate: 1000,
                 },
             });
+            this.v_producer = producer
             console.log('Producer created successfully:', producer);
         } catch (err) {
             console.error('Error producing video:', err);
@@ -92,6 +101,48 @@ export class MediasoupHandler {
         }
     }
 
+    public async StopProucingVideo(){
+        if(!this.v_producer){
+            console.log("No Producer active right now")
+            return
+        }
+        socket.emit('closeProducer',{
+            producerId:this.v_producer.id,
+        })
+        this.v_producer.close()
+        this.v_producer = undefined
+    }
+
+
+    public async StopProucingAudio(){
+        if(!this.a_producer){
+            console.log("No Producer active right now")
+            return
+        }
+        socket.emit('closeProducer',{
+            producerId:this.a_producer.id,
+        })
+        this.a_producer.close()
+        this.a_producer = undefined
+    }
+
+    
+    public async produceAudio(audioTrack: MediaStreamTrack): Promise<void> {
+        try {
+            if(!this.sendTransport){
+                console.log("No Send Transport found for producing Audio")
+                return
+            }
+            const producer = await this.sendTransport.produce({
+                track: audioTrack,
+            });
+            this.a_producer = producer
+            console.log('Producer created successfully:', producer);
+        } catch (err) {
+            console.error('Error producing Audio:', err);
+            console.log(err)
+        }
+    }
 
 
     public async createRecvTransport(): Promise<void> {
@@ -120,14 +171,14 @@ export class MediasoupHandler {
         });
     }
 
-    public async consumeAllVideoStreams(): Promise<Map<string, MediaStreamTrack>> {
+    public async consumeAllVideoStreams(): Promise<Map<string, MediaStreamTrack[]>> {
         if (!this.device || !this.recvTransport) return new Map();
 
         return new Promise((resolve, reject) => {
             socket.emit('transportConsume', {
                 rtpCapabilities: this.device!.rtpCapabilities,
             }, async (consumeData: any) => {
-                const trackMap = new Map<string, MediaStreamTrack>();
+                const trackMap = new Map<string, MediaStreamTrack[]>();
 
                 for (const data of consumeData) {
                     try {
@@ -138,7 +189,10 @@ export class MediasoupHandler {
                             rtpParameters: data.rtpParameters,
                         });
 
-                        trackMap.set(data.userId, consumer.track);
+                        if (!trackMap.has(data.userId)) {
+                            trackMap.set(data.userId, []);
+                        }
+                        trackMap.get(data.userId)!.push(consumer.track);
 
                         socket.emit('resumeConsumeTransport', {
                             consumerId: consumer.id,

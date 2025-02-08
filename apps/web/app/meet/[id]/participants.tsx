@@ -64,6 +64,7 @@ export function ViewParticipants({ containerRef, participants, user }: { contain
                             key={participant.id}
                             className="relative bg-gray-200 rounded-lg overflow-hidden shadow-md"
                         >
+                            
                             <video
                                 ref={participant.ref}
                                 onLoadedMetadata={async (e) => {

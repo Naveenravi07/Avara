@@ -222,7 +222,7 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
         })
 
         room.users.get(userId)?.producersIds.push(producer.id)
-        return { id: producer.id, userId: userId };
+        return { id: producer.id, userId: userId,kind:kind };
     }
 
 
@@ -371,6 +371,31 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
         return users
     }
 
+    async closeProducer(roomId:string,userId:string,producerId:string){
+        const room = this.rooms.get(roomId);
+
+        if (!room || !room.router) {
+            throw new Error("Room or router not found");
+        }
+
+        let myData = room.users.get(userId);
+        if (!myData) {
+            throw new Error("Failed to get user data");
+        }
+        let producer = room.producers.get(producerId)
+        if(!producer){
+            throw new Error("Error getting producer data")
+        }
+
+        producer.producer.close()
+        myData.producersIds = myData.producersIds.filter((id)=>id != producer.producer.id)
+        room.producers.delete(producerId)
+        return{
+            producerId: producer.producer.id,
+            kind:producer.kind,
+            userId:userId
+        }
+    }
 
     onModuleDestroy() {
         this.worker?.close();

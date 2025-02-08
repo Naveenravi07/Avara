@@ -46,69 +46,96 @@ export default function Component() {
         await ms_handler.current?.initializeDevice(data.data)
         await getAllConnectedUserInformation()
         await receiveAllVideoFromServer()
+        await ms_handler.current?.createSendTransport()
+        .then(()=>console.log("Send Transport Created and attached events globally"))
+        .catch(()=>console.log("Send Transport Creation failed"))
     };
 
 
     const sendvideoToServer = async (videoTrack: MediaStreamTrack) => {
-        await ms_handler.current?.createSendTransport(videoTrack);
+        await ms_handler.current?.produceVideo(videoTrack)
+    }
+
+    const sendAudioToServer = async(audioTrack:MediaStreamTrack)=>{
+        await ms_handler.current?.produceAudio(audioTrack)
     }
 
 
     const receiveAllVideoFromServer = async () => {
-        await ms_handler.current?.createRecvTransport()
-        let trackMap = await ms_handler.current?.consumeAllVideoStreams()
-
+        await ms_handler.current?.createRecvTransport();
+        let trackMap = await ms_handler.current?.consumeAllVideoStreams();
+        console.log(trackMap);
 
         setParticipants(prevParticipants => {
             let newP = prevParticipants.map(participant => {
-                const track = trackMap?.get(participant.id);
-                if (track) {
+                const tracks = trackMap?.get(participant.id);
+                if (tracks) {
+                    const stream = new MediaStream();
 
-                    const stream = new MediaStream([track]);
+                    tracks.forEach(track => {
+                        stream.addTrack(track);
+                    });
 
                     if (participant.ref.current) {
-                        participant.ref.current.id = participant.name
-                        participant.ref.current.autoplay = true
+                        participant.ref.current.id = participant.name;
+                        participant.ref.current.autoplay = true;
                         participant.ref.current.srcObject = stream;
-                        participant.ref.current.play()
+                        participant.ref.current.play();
                     }
 
                     return {
                         ...participant,
-                        videoOn: true,
-                        track: track
+                        videoOn: tracks.some(track => track.kind === "video"),
+                        audioOn: tracks.some(track => track.kind === "audio"),
+                        tracks: tracks
                     };
                 }
                 return participant;
             });
-            return newP
+            return newP;
         });
     }
 
 
 
     const consumeNewlyJoinedConsumer = async (data: any) => {
-        let track = await ms_handler.current?.consumeNewProducer(data.producerId, data.userId);
+        let { producerId, userId, kind } = data;
+        let track = await ms_handler.current?.consumeNewProducer(producerId, userId);
+
         if (!track) {
             return;
         }
         setParticipants(prevParticipants => {
             return prevParticipants.map(participant => {
                 if (participant.id === data.userId) {
-                    const stream = new MediaStream([track]);
+                    const stream = new MediaStream();
+
+                    if (participant.tracks.length > 0) {
+                        stream.addTrack(participant.tracks[0]!);
+                    }
+
+                    stream.addTrack(track);
 
                     if (participant.ref.current) {
-                        participant.ref.current.id = participant.name
+                        participant.ref.current.id = participant.name;
                         participant.ref.current.srcObject = stream;
                         participant.ref.current.autoplay = true;
                         participant.ref.current.play();
                     }
 
-                    return {
-                        ...participant,
-                        videoOn: true,
-                        track: track
-                    };
+                    if (kind === "video") {
+                        return {
+                            ...participant,
+                            videoOn: true,
+                            track: track
+                        };
+                    } else {
+                        return {
+                            ...participant,
+                            audioOn: true,
+                            track: track
+                        };
+                    }
                 }
                 return participant;
             });
@@ -116,10 +143,55 @@ export default function Component() {
     }
 
     const onNewProducerAdded = async (data: any) => {
-        let { userId, producerId }: { userId: string, producerId: string } = data;
-        await consumeNewlyJoinedConsumer({userId,producerId})
+        let { userId, producerId,kind }: { userId: string, producerId: string,kind:string} = data;
+        await consumeNewlyJoinedConsumer({userId,producerId,kind})
     }
 
+    const onProducerClosed = async (data: any) => {
+        console.log("Some producer got closed", data);
+        let { producerId, userId, kind }: { producerId: string, userId: string, kind: string } = data;
+
+        setParticipants((prevPartis) => {
+            let newPartis = prevPartis.map((p) => {
+                if (p.id === userId) {
+                    console.log(p);
+                    console.log(kind);
+                    let updatedVideoOn = p.videoOn;
+                    let updatedAudioOn = p.audioOn;
+
+                    if (kind === "video") {
+                        updatedVideoOn = false; 
+                    } else {
+                        updatedAudioOn = false;
+                    }
+                    const remainingTracks = p.tracks.filter(track => track.kind !== kind);
+                    const stream = new MediaStream();
+                    p.tracks.forEach((track) => {
+                        if (track.kind === kind) {
+                            track.stop();
+                        } else {
+                            stream.addTrack(track);
+                        }
+                    });
+
+                    // Update the video element if it exists
+                    if (p.ref.current) {
+                        p.ref.current.srcObject = stream; // Update the srcObject to the new stream
+                        p.ref.current.play(); // Play the new stream (if any)
+                    }
+
+                    return {
+                        ...p,
+                        videoOn: updatedVideoOn,
+                        audioOn: updatedAudioOn,
+                        tracks: remainingTracks,
+                    };
+                }
+                return p;
+            });
+            return newPartis;
+        });
+    }
 
 
     const onNewMemberJoined = async (data: any) => {
@@ -146,7 +218,7 @@ export default function Component() {
             name,
             videoOn: false,
             audioOn: false,
-            track: undefined,
+            tracks: [],
             ref: React.createRef<HTMLVideoElement>()
         }]);
     };
@@ -168,12 +240,15 @@ export default function Component() {
         socket.on('RTPCapabilities', handleRTPCapabilities);
         socket.on('newUserJoined', onNewMemberJoined)
         socket.on('newProducer', onNewProducerAdded)
+        socket.on('producerClosed',onProducerClosed)
 
         return () => {
             socket.off('connect', handleConnect);
             socket.off('RTPCapabilities', handleRTPCapabilities);
             socket.off('newUserJoined', onNewMemberJoined)
             socket.off('newProducer', onNewProducerAdded)
+            socket.off('producerClosed',onProducerClosed)
+
 
             if (socket.connected) {
                 socket.disconnect();
@@ -185,8 +260,24 @@ export default function Component() {
         };
     }, [user, id]);
 
-    const handleMyAudioToggle = () => {
+
+    const handleMyAudioToggle =  async() => {
         if (user == null || user == undefined) return;
+        const index = participants.findIndex(obj => obj.id === user.id);
+        if (index === -1) return;
+
+        const participant = participants[index];
+        const isAudioOn = !participant?.audioOn;
+
+        if(isAudioOn){
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const audioTrack = stream.getAudioTracks()[0];
+            if(!audioTrack){
+                return
+            }
+            await ms_handler.current?.produceAudio(audioTrack)
+        }
+
         setParticipants(prev => {
             const index = prev.findIndex(obj => obj.id === user.id);
 
@@ -199,49 +290,7 @@ export default function Component() {
     };
 
     const handleMyScreenVideoToggle = async () => {
-        if (!user) return;
-
-        const index = participants.findIndex(obj => obj.id === user.id);
-        if (index === -1) return;
-
-        const participant = participants[index];
-        const isVideoOn = !participant?.videoOn;
-
-        if (isVideoOn) {
-            try {
-                const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-                const videoTrack = stream.getVideoTracks()[0];
-                if (!videoTrack) {
-                    return
-                }
-
-                if (participant?.ref?.current) {
-                    participant.ref.current.srcObject = stream;
-                }
-
-                setParticipants(prevState => prevState.map(p =>
-                    p.id === user.id
-                        ? { ...p, videoOn: true, track: videoTrack }
-                        : p
-                ));
-
-                await sendvideoToServer(videoTrack)
-            } catch (error) {
-                console.error("Error accessing camera:", error);
-            }
-        } else {
-            if (participant.track) {
-                participant.track.stop();
-            }
-            if (participant.ref?.current) {
-                participant.ref.current.srcObject = null;
-            }
-            setParticipants(prevState => prevState.map(p =>
-                p.id === user.id
-                    ? { ...p, videoOn: false, track: undefined }
-                    : p
-            ));
-        }
+      
     }
 
 
@@ -278,8 +327,10 @@ export default function Component() {
                 console.error("Error accessing camera:", error);
             }
         } else {
-            if (participant.track) {
-                participant.track.stop();
+
+            await ms_handler.current?.StopProucingVideo();
+            if (participant.tracks) {
+                participant.tracks.filter((ob)=>ob.kind=="video").map((t)=>t.stop())
             }
             if (participant.ref?.current) {
                 participant.ref.current.srcObject = null;

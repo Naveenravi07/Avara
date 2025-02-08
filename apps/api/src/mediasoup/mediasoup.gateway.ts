@@ -61,7 +61,7 @@ export class MediasoupGateway implements OnGatewayConnection, OnGatewayDisconnec
     @SubscribeMessage('transportProduce')
     async transportProduce(@ConnectedSocket() client: Socket, @MessageBody() payload: any) {
         let producer = await this.MediasoupService.createProducerFromTransport(payload, client.data.roomId, client.data.userId);
-        client.broadcast.to(client.data.roomId).emit('newProducer', { userId: client.data.userId, producerId: producer.id })
+        client.broadcast.to(client.data.roomId).emit('newProducer', { userId: client.data.userId, producerId: producer.id,kind:producer.kind })
         return producer;
     }
 
@@ -87,5 +87,13 @@ export class MediasoupGateway implements OnGatewayConnection, OnGatewayDisconnec
     async consumeNewUser(@ConnectedSocket() client: Socket, @MessageBody() payload: any) {
         let consumersInfo = await this.MediasoupService.consumeSingleUser(payload, client.data.roomId, client.data.userId, payload.producerId);
         return consumersInfo
+    }
+
+
+    @SubscribeMessage('closeProducer')
+    async closeProducer(@ConnectedSocket() client: Socket, @MessageBody() payload: any) {
+        let producerInfo = await this.MediasoupService.closeProducer(client.data.roomId, client.data.userId, payload.producerId);
+        client.broadcast.emit('producerClosed',producerInfo)
+        return producerInfo
     }
 }

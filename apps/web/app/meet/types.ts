@@ -6,6 +6,6 @@ export type Participant = {
     videoOn: boolean;
     audioOn: boolean;
     ref: React.RefObject<HTMLVideoElement>;
-    track: MediaStreamTrack | undefined
+    tracks: MediaStreamTrack[]
 };
 
