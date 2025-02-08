@@ -73,6 +73,7 @@ export class MediasoupGateway implements OnGatewayConnection, OnGatewayDisconnec
     @SubscribeMessage('resumeConsumeTransport')
     async resumeConsumeTransport(@ConnectedSocket() client: Socket, @MessageBody() payload: any) {
         let status = await this.MediasoupService.resumeConsumerTransport(client.data.roomId, payload.consumerId);
+
         return status;
     }
 
@@ -84,7 +85,7 @@ export class MediasoupGateway implements OnGatewayConnection, OnGatewayDisconnec
 
     @SubscribeMessage('consumeNewUser')
     async consumeNewUser(@ConnectedSocket() client: Socket, @MessageBody() payload: any) {
-        let consumersInfo = await this.MediasoupService.consumeSingleUser(payload, client.data.roomId, client.data.userId, payload.newUserId);
+        let consumersInfo = await this.MediasoupService.consumeSingleUser(payload, client.data.roomId, client.data.userId, payload.producerId);
         return consumersInfo
     }
 }

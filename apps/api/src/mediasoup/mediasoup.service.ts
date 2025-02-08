@@ -184,8 +184,6 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
         if (item.consumer !== consumer) {
             throw new Error("Invalid transport found")
         }
-        console.log("[INFO] Setting dtls params for transport ", item.transport.id)
-        Array.from(room.transports).map(obj => console.log(`userid = ${obj[1].userId}, transport = ${obj[1].transport.id} Consumer = ${obj[1].consumer}`))
         await item.transport.connect({
             dtlsParameters: dtlsParameters
         });
@@ -215,7 +213,6 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
             appData: appData || {},
         });
 
-        console.log("Producer created for User = ", userId, "Producerid = ", producer.id, "Transportid = ", transport.transport.id)
 
         room.producers.set(producer.id, {
             producer: producer,
@@ -225,8 +222,11 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
         })
 
         room.users.get(userId)?.producersIds.push(producer.id)
-        return { id: producer.id,userId:userId };
+        return { id: producer.id, userId: userId };
     }
+
+
+
 
     async createConsumerFromTransport(data: any, roomId: string, userId: string) {
         const { rtpCapabilities }: { rtpCapabilities: RtpCapabilities } = data;
@@ -235,7 +235,6 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
         if (!room || !room.router) {
             throw new Error("Room or router not found");
         }
-        console.log("Creating consumers for user with id = ", userId)
 
         let myData = room.users.get(userId);
         if (!myData) {
@@ -244,30 +243,25 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
 
         let myTransport = myData.transportIds.map((tid) => room.transports.get(tid))
         let myConsumeTransport = myTransport?.filter((obj) => obj?.consumer == true);
-        console.log("Found MyConsume transport info; Transport id ", myConsumeTransport)
         let myConsumeRecvTrans = myConsumeTransport[0]?.transport.id
 
         let consumersInfo: any[] = []
 
         for (const user of room.users.values()) { // Map through each of users in room
             if (user.id === userId) continue; // Skip consuming my own producers
-
             for (const producerId of user.producersIds) {  // Going through each producers of users in room
                 const producer = room.producers.get(producerId);
                 if (!producer) continue;
 
                 if (!room.router.canConsume({ producerId, rtpCapabilities })) {
-                    console.error(`Router cannot consume for producer ${producerId}`);
                     continue;
                 }
 
-                console.log("Prepping to consume producer of id =", producerId, "Transport id = ", myConsumeRecvTrans, "For user id = ", myConsumeTransport[0]?.userId)
                 if (!myConsumeRecvTrans) {
                     throw new Error("Failed to get the transport id ")
                 }
                 const transport = room.transports.get(myConsumeRecvTrans);
                 if (!transport) {
-                    console.error(`Transport not found for producer ${producerId}`);
                     continue;
                 }
                 try {
@@ -277,7 +271,6 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
                         paused: true,
                     });
 
-                    console.log("Found transport for consuming; Producerid=", producerId, "Consumerid =", consumer.id, "Userid =", userId)
 
                     user.consumersIds.push(consumer.id);
                     room.consumers.set(consumer.id, {
@@ -294,7 +287,6 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
                         userId: producer.userId
                     })
                 } catch (err) {
-                    console.error(`Failed to create consumer for producer ${producerId}:`, err);
                 }
             }
         }
@@ -302,14 +294,16 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
     }
 
 
-    async consumeSingleUser(data: any, roomId: string, my_uid: string, newUserId: string) {
+
+
+
+    async consumeSingleUser(data: any, roomId: string, my_uid: string, producerId: string) {
         const { rtpCapabilities }: { rtpCapabilities: RtpCapabilities } = data;
         const room = this.rooms.get(roomId);
 
         if (!room || !room.router) {
             throw new Error("Room or router not found");
         }
-        console.log("Creating consumers for user with id = ", my_uid)
 
         let myData = room.users.get(my_uid);
         if (!myData) {
@@ -318,51 +312,39 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
 
         let myTransport = myData.transportIds.map((tid) => room.transports.get(tid))
         let myConsumeTransport = myTransport?.filter((obj) => obj?.consumer == true);
-        console.log("Found MyConsume transport info; Transport id ", myConsumeTransport)
         let myConsumeRecvTrans = myConsumeTransport[0]?.transport
 
         if (!myConsumeRecvTrans) {
             throw new Error("Failed to get your transport data")
         }
 
-        let pro = room.users.get(newUserId)?.producersIds
-        let prodDatas = pro?.map((id) => room.producers.get(id))
-        if (!prodDatas) {
+        let producer = room.producers.get(producerId)
+        if (!producer) {
             throw new Error("Failed to get producer information")
         }
 
-        let consumeInfo: any[] = []
-
-        for (const producer of prodDatas) {
-            let id = producer?.producer.id
-            if (!id) {
-                return
-            }
-            let consumer = await myConsumeRecvTrans.consume({
-                producerId: id,
-                paused: true,
-                rtpCapabilities: rtpCapabilities
-            })
-
-            myData.consumersIds.push(consumer.id)
-            room.consumers.set(consumer.id, {
-                consumer,
-                producerId:id,
-                transportId: myConsumeRecvTrans.id,
-                userId: my_uid,
-            });
-            consumeInfo.push({
-                id: consumer.id,
-                producerId: id,
-                kind: producer?.kind,
-                rtpParameters: consumer.rtpParameters,
-                userId: newUserId
-            })
+        let consumer = await myConsumeRecvTrans.consume({
+            producerId: producer.producer.id,
+            paused: true,
+            rtpCapabilities: rtpCapabilities
+        })
+        let resp = {
+            producerId: producer.producer.id,
+            id: consumer.id,
+            kind: consumer.kind,
+            rtpParameters: consumer.rtpParameters
         }
-        return consumeInfo
+
+        myData.consumersIds.push(consumer.id)
+        room.consumers.set(consumer.id, {
+            consumer,
+            producerId: producer.producer.id,
+            transportId: myConsumeRecvTrans.id,
+            userId: my_uid,
+        });
+
+        return resp
     }
-
-
 
     async resumeConsumerTransport(roomId: string, consumerId: string) {
         const room = this.rooms.get(roomId);
@@ -370,7 +352,6 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
             throw new Error("Room or router not found");
         }
         let consumer = room.consumers.get(consumerId)
-        console.log("Resuming consumer from server")
         await consumer?.consumer.resume()
         return true
     }
@@ -392,7 +373,6 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
 
 
     onModuleDestroy() {
-        console.log("Destroying Mediasoup Service")
         this.worker?.close();
     }
 }
