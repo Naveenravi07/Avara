@@ -22,10 +22,6 @@ export default function Component() {
 
     const getAllConnectedUserInformation = async () => {
         socket.emit('getAllUsersInRoom', null, (response: any) => {
-            //
-            // The current user is already added to participant list inside useEffect
-            // so Here we are adding only the other participants.
-            //
             const partis: Participant[] = response
                 .filter((obj: any) => obj.id !== user?.id)
                 .map((obj: any) => ({
@@ -33,10 +29,9 @@ export default function Component() {
                     name: obj.name,
                     videoOn: false,
                     audioOn: false,
-                    track: undefined,
+                    tracks: [],
                     ref: React.createRef<HTMLVideoElement>(),
                 }));
-
             setParticipants((prevParticipants) => [...prevParticipants, ...partis]);
         })
     }
@@ -47,18 +42,10 @@ export default function Component() {
         await getAllConnectedUserInformation()
         await receiveAllVideoFromServer()
         await ms_handler.current?.createSendTransport()
-        .then(()=>console.log("Send Transport Created and attached events globally"))
-        .catch(()=>console.log("Send Transport Creation failed"))
+            .then(() => console.log("Send Transport Created and attached events globally"))
+            .catch(() => console.log("Send Transport Creation failed"))
     };
 
-
-    const sendvideoToServer = async (videoTrack: MediaStreamTrack) => {
-        await ms_handler.current?.produceVideo(videoTrack)
-    }
-
-    const sendAudioToServer = async(audioTrack:MediaStreamTrack)=>{
-        await ms_handler.current?.produceAudio(audioTrack)
-    }
 
 
     const receiveAllVideoFromServer = async () => {
@@ -99,99 +86,119 @@ export default function Component() {
 
 
     const consumeNewlyJoinedConsumer = async (data: any) => {
-        let { producerId, userId, kind } = data;
-        let track = await ms_handler.current?.consumeNewProducer(producerId, userId);
-
-        if (!track) {
-            return;
-        }
-        setParticipants(prevParticipants => {
-            return prevParticipants.map(participant => {
-                if (participant.id === data.userId) {
-                    const stream = new MediaStream();
-
-                    if (participant.tracks.length > 0) {
-                        stream.addTrack(participant.tracks[0]!);
+        const { producerId, userId, kind } = data;
+        try {
+            const track = await ms_handler.current?.consumeNewProducer(producerId, userId);
+            if (!track) {
+                console.warn("No track received from consumeNewProducer");
+                return;
+            }
+            setParticipants(prevParticipants => {
+                return prevParticipants.map(participant => {
+                    if (participant.id !== userId) {
+                        return participant;
                     }
+                    const updatedTracks = [...(participant.tracks || []), track];
+                    try {
+                        const stream = new MediaStream();
+                        updatedTracks.forEach(t => stream.addTrack(t));
 
-                    stream.addTrack(track);
+                        if (participant.ref?.current) {
+                            participant.ref.current.id = participant.name;
+                            participant.ref.current.srcObject = stream;
+                            participant.ref.current.autoplay = true;
 
-                    if (participant.ref.current) {
-                        participant.ref.current.id = participant.name;
-                        participant.ref.current.srcObject = stream;
-                        participant.ref.current.autoplay = true;
-                        participant.ref.current.play();
-                    }
+                            if (participant.ref.current.paused) {
+                                participant.ref.current.play().catch(err =>
+                                    console.error("Error playing stream:", err)
+                                );
+                            }
+                        }
 
-                    if (kind === "video") {
                         return {
                             ...participant,
-                            videoOn: true,
-                            track: track
+                            videoOn: kind === "video" ? true : participant.videoOn,
+                            audioOn: kind === "audio" ? true : participant.audioOn,
+                            tracks: updatedTracks,
                         };
-                    } else {
-                        return {
-                            ...participant,
-                            audioOn: true,
-                            track: track
-                        };
+                    } catch (err) {
+                        console.error("Error setting up MediaStream:", err);
+                        return participant;
                     }
-                }
-                return participant;
+                });
             });
-        });
-    }
+        } catch (err) {
+            console.error("Error in consumeNewlyJoinedConsumer:", err);
+        }
+    };
+
 
     const onNewProducerAdded = async (data: any) => {
-        let { userId, producerId,kind }: { userId: string, producerId: string,kind:string} = data;
-        await consumeNewlyJoinedConsumer({userId,producerId,kind})
+        let { userId, producerId, kind }: { userId: string, producerId: string, kind: string } = data;
+        await consumeNewlyJoinedConsumer({ userId, producerId, kind })
     }
 
     const onProducerClosed = async (data: any) => {
         console.log("Some producer got closed", data);
-        let { producerId, userId, kind }: { producerId: string, userId: string, kind: string } = data;
+        const { producerId, userId, kind }: { producerId: string; userId: string; kind: string } = data;
 
         setParticipants((prevPartis) => {
-            let newPartis = prevPartis.map((p) => {
-                if (p.id === userId) {
-                    console.log(p);
-                    console.log(kind);
-                    let updatedVideoOn = p.videoOn;
-                    let updatedAudioOn = p.audioOn;
+            const userIndex = prevPartis.findIndex(p => p.id === userId);
+            if (userIndex === -1) return prevPartis;
 
-                    if (kind === "video") {
-                        updatedVideoOn = false; 
-                    } else {
-                        updatedAudioOn = false;
-                    }
-                    const remainingTracks = p.tracks.filter(track => track.kind !== kind);
-                    const stream = new MediaStream();
-                    p.tracks.forEach((track) => {
-                        if (track.kind === kind) {
-                            track.stop();
-                        } else {
-                            stream.addTrack(track);
-                        }
-                    });
+            return prevPartis.map(p => {
+                if (p.id !== userId) return p;
+                const tracks = Array.isArray(p.tracks) ? p.tracks : [];
 
-                    // Update the video element if it exists
-                    if (p.ref.current) {
-                        p.ref.current.srcObject = stream; // Update the srcObject to the new stream
-                        p.ref.current.play(); // Play the new stream (if any)
-                    }
-
+                if (tracks.length === 0) {
                     return {
                         ...p,
-                        videoOn: updatedVideoOn,
-                        audioOn: updatedAudioOn,
-                        tracks: remainingTracks,
+                        videoOn: kind === "video" ? false : p.videoOn,
+                        audioOn: kind === "audio" ? false : p.audioOn,
                     };
                 }
-                return p;
+
+                const remainingTracks = tracks.filter((track) => {
+                    if (track.kind === kind) {
+                        try {
+                            track.stop();
+                        } catch (err) {
+                            console.error("Error stopping track:", err);
+                        }
+                        return false;
+                    }
+                    return true;
+                });
+
+                try {
+                    if (remainingTracks.length > 0) {
+                        const stream = new MediaStream();
+                        remainingTracks.forEach((track) => stream.addTrack(track));
+
+                        if (p.ref?.current) {
+                            p.ref.current.srcObject = stream;
+                            if (p.ref.current.paused) {
+                                p.ref.current.play().catch(err =>
+                                    console.error("Error playing stream:", err)
+                                );
+                            }
+                        }
+                    } else if (p.ref?.current) {
+                        p.ref.current.srcObject = null;
+                    }
+                } catch (err) {
+                    console.error("Error handling MediaStream:", err);
+                }
+
+                return {
+                    ...p,
+                    videoOn: kind === "video" ? false : p.videoOn,
+                    audioOn: kind === "audio" ? false : p.audioOn,
+                    tracks: remainingTracks,
+                };
             });
-            return newPartis;
         });
-    }
+    };
 
 
     const onNewMemberJoined = async (data: any) => {
@@ -240,14 +247,14 @@ export default function Component() {
         socket.on('RTPCapabilities', handleRTPCapabilities);
         socket.on('newUserJoined', onNewMemberJoined)
         socket.on('newProducer', onNewProducerAdded)
-        socket.on('producerClosed',onProducerClosed)
+        socket.on('producerClosed', onProducerClosed)
 
         return () => {
             socket.off('connect', handleConnect);
             socket.off('RTPCapabilities', handleRTPCapabilities);
             socket.off('newUserJoined', onNewMemberJoined)
             socket.off('newProducer', onNewProducerAdded)
-            socket.off('producerClosed',onProducerClosed)
+            socket.off('producerClosed', onProducerClosed)
 
 
             if (socket.connected) {
@@ -261,7 +268,7 @@ export default function Component() {
     }, [user, id]);
 
 
-    const handleMyAudioToggle =  async() => {
+    const handleMyAudioToggle = async () => {
         if (user == null || user == undefined) return;
         const index = participants.findIndex(obj => obj.id === user.id);
         if (index === -1) return;
@@ -269,13 +276,16 @@ export default function Component() {
         const participant = participants[index];
         const isAudioOn = !participant?.audioOn;
 
-        if(isAudioOn){
+        if (isAudioOn) {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             const audioTrack = stream.getAudioTracks()[0];
-            if(!audioTrack){
+            if (!audioTrack) {
                 return
             }
             await ms_handler.current?.produceAudio(audioTrack)
+            console.log("Produced audio")
+        } else {
+            await ms_handler.current?.StopProucingAudio()
         }
 
         setParticipants(prev => {
@@ -290,7 +300,7 @@ export default function Component() {
     };
 
     const handleMyScreenVideoToggle = async () => {
-      
+
     }
 
 
@@ -322,7 +332,7 @@ export default function Component() {
                         : p
                 ));
 
-                await sendvideoToServer(videoTrack)
+                await ms_handler.current?.produceVideo(videoTrack)
             } catch (error) {
                 console.error("Error accessing camera:", error);
             }
@@ -330,7 +340,7 @@ export default function Component() {
 
             await ms_handler.current?.StopProucingVideo();
             if (participant.tracks) {
-                participant.tracks.filter((ob)=>ob.kind=="video").map((t)=>t.stop())
+                participant.tracks.filter((ob) => ob.kind == "video").map((t) => t.stop())
             }
             if (participant.ref?.current) {
                 participant.ref.current.srcObject = null;
