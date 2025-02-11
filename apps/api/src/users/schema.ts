@@ -1,6 +1,6 @@
 import { relations } from 'drizzle-orm';
 import { uuid, pgTable, varchar, pgEnum, timestamp } from 'drizzle-orm/pg-core';
-import { meetTable } from 'src/meet/schema';
+import { meetTable } from '../../src/meet/schema';
 
 export const providersEnum = pgEnum('providers', ['email', 'github']);
 

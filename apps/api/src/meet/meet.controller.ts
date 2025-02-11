@@ -1,11 +1,10 @@
 import { Controller, Post, Body, UseGuards, UsePipes } from '@nestjs/common';
 import { MeetService } from './meet.service';
-import { createMeetSchema, type CreateMeet } from './dto/create-meet.dto';
-import { GResponse } from 'comon/classes/GResponse';
-import { CurrentUser } from 'comon/decorators/current-user-decorator';
-import { type SessionUser } from 'src/users/dto/session-user';
-import { AuthenticatedGuard } from 'src/auth/session.auth.guard';
-import { ZodValidationPipe } from 'comon/pipes/zodValidationPipe';
+import { GResponse } from '../../comon/classes/GResponse';
+import { CurrentUser } from '../../comon/decorators/current-user-decorator';
+import { type SessionUser } from '../../src/users/dto/session-user';
+import { AuthenticatedGuard } from '../../src/auth/session.auth.guard';
+import { type CreateMeet } from './dto/create-meet.dto';
 
 @Controller('meet')
 export class MeetController {

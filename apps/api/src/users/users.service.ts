@@ -3,7 +3,6 @@ import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE_CONNECTION } from '../../src/database/database-connection';
 import * as schema from './schema';
 import { eq } from 'drizzle-orm';
-import { PgUUID } from 'drizzle-orm/pg-core';
 
 @Injectable()
 export class UsersService {

@@ -1,10 +1,10 @@
 import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
-import type { CreateMeet } from './dto/create-meet.dto';
-import { DATABASE_CONNECTION } from 'src/database/database-connection';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import type { CreateMeet } from './dto/create-meet.dto';
+import { DATABASE_CONNECTION } from '../../src/database/database-connection';
 import * as schema from "./schema"
-import { MediasoupService } from 'src/mediasoup/mediasoup.service';
-import { SessionUser } from 'src/users/dto/session-user';
+import { MediasoupService } from '../../src/mediasoup/mediasoup.service';
+import { SessionUser } from '../../src/users/dto/session-user';
 
 @Injectable()
 export class MeetService {

@@ -1,6 +1,6 @@
 import { relations } from 'drizzle-orm';
 import { uuid, pgTable,  timestamp } from 'drizzle-orm/pg-core';
-import { usersTable } from 'src/users/schema';
+import { usersTable } from '../../src/users/schema';
 
 export const meetTable = pgTable('meet', {
     id: uuid().primaryKey().defaultRandom(),
