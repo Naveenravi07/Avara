@@ -117,7 +117,7 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
                         mimeType: 'video/VP8',
                         clockRate: 90000,
                         parameters: {
-                            'x-google-start-bitrate': 1000,
+                            'x-google-start-bitrate': 8000,
                         },
                     },
                 ],
