@@ -1,11 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { Participant, participantsPerPage } from "../types"
-import { ChevronLeft, ChevronRight, Mic, MicOff, Video, VideoOff } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Mic, MicOff, Users, Video, VideoOff } from 'lucide-react';
 import { User } from "@/types/user/user";
 
-export function VideoControls({ participants, handleMyAudioToggle, handleMyVideoToggle, setCurrentPage, user,handleMyScreenVideoToggle }
+export function VideoControls({ participants, handleMyAudioToggle, handleMyVideoToggle, setCurrentPage, user, handleParticipantsButtonClick }
     : {
-        setCurrentPage: React.Dispatch<React.SetStateAction<number>>, participants: Participant[], user: User, handleMyAudioToggle: () => void, handleMyVideoToggle: () => Promise<void>,handleMyScreenVideoToggle:()=>Promise<void>
+        setCurrentPage: React.Dispatch<React.SetStateAction<number>>, participants: Participant[], user: User, handleMyAudioToggle: () => void, handleMyVideoToggle: () => Promise<void>, handleParticipantsButtonClick: () => void
     }
 ) {
     const totalPages = Math.ceil(participants.length / participantsPerPage);
@@ -36,6 +36,10 @@ export function VideoControls({ participants, handleMyAudioToggle, handleMyVideo
                         <VideoOff className="h-4 w-4 text-red-600" />
                     );
                 })()}
+            </Button>
+
+            <Button onClick={handleParticipantsButtonClick} variant="link" size="icon">
+                <Users className="h-4 w-4 text-green-600" />
             </Button>
 
             <Button variant="secondary" size="icon" onClick={handlePrevPage} disabled={totalPages <= 1}>

@@ -9,6 +9,7 @@ import { Participant } from "../types"
 import { ViewParticipants } from './participants';
 import { VideoControls } from './controls';
 import { MediasoupHandler } from './mediasoup';
+import { UserManagementModal } from './userListModal';
 
 
 export default function Component() {
@@ -19,6 +20,7 @@ export default function Component() {
     const [currentPage, setCurrentPage] = useState(0);
     const device = useRef<mediasoupClient.Device | null>(null);
     const ms_handler = useRef<MediasoupHandler | null>(null);
+    const [P_Popup, setP_Popup] = useState(false)
 
     const getAllConnectedUserInformation = async () => {
         socket.emit('getAllUsersInRoom', null, (response: any) => {
@@ -32,10 +34,10 @@ export default function Component() {
                     tracks: [],
                     ref: React.createRef<HTMLVideoElement>(),
                 }));
+
             setParticipants((prevParticipants) => [...prevParticipants, ...partis]);
         })
     }
-
 
     const handleRTPCapabilities = async (data: any) => {
         await ms_handler.current?.initializeDevice(data.data)
@@ -140,7 +142,7 @@ export default function Component() {
 
     const onProducerClosed = async (data: any) => {
         console.log("Some producer got closed", data);
-        const { producerId, userId, kind }: { producerId: string; userId: string; kind: string } = data;
+        const { _producerId, userId, kind }: { producerId: string; userId: string; kind: string } = data;
 
         setParticipants((prevPartis) => {
             const userIndex = prevPartis.findIndex(p => p.id === userId);
@@ -232,7 +234,7 @@ export default function Component() {
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
-            window.localStorage.setItem("debug", "*")
+            // window.localStorage.setItem("debug", "*")
         }
         if (user == undefined || user == null) return
         if (id == undefined || id == null) return
@@ -299,10 +301,6 @@ export default function Component() {
         });
     };
 
-    const handleMyScreenVideoToggle = async () => {
-
-    }
-
 
 
     const handleMyVideoToggle = async () => {
@@ -358,13 +356,14 @@ export default function Component() {
     return (
         <div className="flex flex-col h-[calc(100vh-4rem)] bg-white text-gray-800">
             <ViewParticipants containerRef={containerRef} user={user!} participants={participants} />
+            <UserManagementModal socket={socket}  open={P_Popup} onOpenChange={setP_Popup} />
             <VideoControls
                 user={user!}
                 participants={participants}
                 setCurrentPage={setCurrentPage}
                 handleMyAudioToggle={handleMyAudioToggle}
                 handleMyVideoToggle={handleMyVideoToggle}
-                handleMyScreenVideoToggle={handleMyScreenVideoToggle}
+                handleParticipantsButtonClick={() => { setP_Popup(true) }}
             />
         </div>
     );

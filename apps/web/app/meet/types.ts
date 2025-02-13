@@ -9,3 +9,8 @@ export type Participant = {
     tracks: MediaStreamTrack[]
 };
 
+export type User = {
+    id:string,
+    name:string,
+    imgSrc:string
+}

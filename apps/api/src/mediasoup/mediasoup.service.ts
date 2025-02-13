@@ -12,11 +12,13 @@ import {
     Consumer,
 } from 'mediasoup/node/lib/types';
 import * as mediasoup from 'mediasoup';
+import { UsersService } from 'src/users/users.service';
 
 
 type UserData = {
     id: string,
     name: string,
+    imgSrc: string,
     transportIds: string[],
     producersIds: string[]
     consumersIds: string[]
@@ -52,6 +54,10 @@ type Room = {
 
 @Injectable()
 export class MediasoupService implements OnModuleInit, OnModuleDestroy {
+    constructor(
+        private readonly userService: UsersService
+    ) { }
+
     private worker: Worker | undefined
     private rooms: Map<string, Room> = new Map()
 
@@ -86,12 +92,15 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
         if (!room) {
             throw new Error("Room Does not exists")
         }
+
+        let userData = await this.userService.getUser(id);
         room.users.set(id, {
             transportIds: [],
             producersIds: [],
             consumersIds: [],
             name: name,
-            id: id
+            id: id,
+            imgSrc: userData.pfpUrl || "https://i.scdn.co/image/ab67616100005174305839f7ed0cdbc450e4ec97"
         })
     }
 
@@ -222,7 +231,7 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
         })
 
         room.users.get(userId)?.producersIds.push(producer.id)
-        return { id: producer.id, userId: userId,kind:kind };
+        return { id: producer.id, userId: userId, kind: kind };
     }
 
 
@@ -365,13 +374,14 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
         let users = Array.from(room.users.values()).map((obj) => {
             return {
                 id: obj.id,
-                name: obj.name
+                name: obj.name,
+                imgSrc: obj.imgSrc
             }
         })
         return users
     }
 
-    async closeProducer(roomId:string,userId:string,producerId:string){
+    async closeProducer(roomId: string, userId: string, producerId: string) {
         const room = this.rooms.get(roomId);
 
         if (!room || !room.router) {
@@ -383,17 +393,17 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
             throw new Error("Failed to get user data");
         }
         let producer = room.producers.get(producerId)
-        if(!producer){
+        if (!producer) {
             throw new Error("Error getting producer data")
         }
 
         producer.producer.close()
-        myData.producersIds = myData.producersIds.filter((id)=>id != producer.producer.id)
+        myData.producersIds = myData.producersIds.filter((id) => id != producer.producer.id)
         room.producers.delete(producerId)
-        return{
+        return {
             producerId: producer.producer.id,
-            kind:producer.kind,
-            userId:userId
+            kind: producer.kind,
+            userId: userId
         }
     }
 
