@@ -10,7 +10,9 @@ import { ViewParticipants } from './participants';
 import { VideoControls } from './controls';
 import { MediasoupHandler } from './mediasoup';
 import { UserManagementModal } from './userListModal';
+import { useToast } from '@/hooks/use-toast';
 
+const DEFAULTUSERIMG = "https://media.istockphoto.com/id/1130884625/vector/user-member-vector-icon-for-ui-user-interface-or-profile-face-avatar-app-in-circle-design.jpg?s=612x612&w=0&k=20&c=1ky-gNHiS2iyLsUPQkxAtPBWH1BZt0PKBB1WBtxQJRE="
 
 export default function Component() {
     const { user } = useAuth()
@@ -21,6 +23,7 @@ export default function Component() {
     const device = useRef<mediasoupClient.Device | null>(null);
     const ms_handler = useRef<MediasoupHandler | null>(null);
     const [P_Popup, setP_Popup] = useState(false)
+    const { toast } = useToast()
 
     const getAllConnectedUserInformation = async () => {
         socket.emit('getAllUsersInRoom', null, (response: any) => {
@@ -33,6 +36,7 @@ export default function Component() {
                     audioOn: false,
                     tracks: [],
                     ref: React.createRef<HTMLVideoElement>(),
+                    imgSrc: obj.imgSrc
                 }));
 
             setParticipants((prevParticipants) => [...prevParticipants, ...partis]);
@@ -53,7 +57,6 @@ export default function Component() {
     const receiveAllVideoFromServer = async () => {
         await ms_handler.current?.createRecvTransport();
         let trackMap = await ms_handler.current?.consumeAllVideoStreams();
-        console.log(trackMap);
 
         setParticipants(prevParticipants => {
             let newP = prevParticipants.map(participant => {
@@ -141,7 +144,6 @@ export default function Component() {
     }
 
     const onProducerClosed = async (data: any) => {
-        console.log("Some producer got closed", data);
         const { _producerId, userId, kind }: { producerId: string; userId: string; kind: string } = data;
 
         setParticipants((prevPartis) => {
@@ -204,9 +206,15 @@ export default function Component() {
 
 
     const onNewMemberJoined = async (data: any) => {
-        addParticipant(data.userId, data.name)
+        addParticipant(data.userId, data.name, data.imgSrc)
+        toast({ title: `${data.name} Just joined` })
     }
 
+    const onUserLeave = async (data: any) => {
+        let { id, name }: { id: string, name: string } = data
+        toast({ title: `${name} Just left` })
+        setParticipants((prevPartis) => prevPartis.filter((p) => p.id != id))
+    }
 
 
     const handleConnect = async () => {
@@ -221,16 +229,18 @@ export default function Component() {
     };
 
 
-    const addParticipant = (id: string, name: string) => {
+    const addParticipant = (id: string, name: string, imgSrc: string | undefined) => {
         setParticipants(prev => [...prev, {
             id,
             name,
             videoOn: false,
             audioOn: false,
             tracks: [],
-            ref: React.createRef<HTMLVideoElement>()
+            ref: React.createRef<HTMLVideoElement>(),
+            imgSrc: imgSrc
         }]);
     };
+
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -242,12 +252,13 @@ export default function Component() {
         if (ms_handler.current == null) {
             ms_handler.current = new MediasoupHandler()
         }
-        addParticipant(user.id, user.name)
+        addParticipant(user.id, user.name, user.pfpUrl ?? undefined)
         socket.connect()
 
         socket.on('connect', handleConnect);
         socket.on('RTPCapabilities', handleRTPCapabilities);
         socket.on('newUserJoined', onNewMemberJoined)
+        socket.on('userLeft', onUserLeave)
         socket.on('newProducer', onNewProducerAdded)
         socket.on('producerClosed', onProducerClosed)
 
@@ -256,6 +267,7 @@ export default function Component() {
             socket.off('RTPCapabilities', handleRTPCapabilities);
             socket.off('newUserJoined', onNewMemberJoined)
             socket.off('newProducer', onNewProducerAdded)
+            socket.off('userLeft', onUserLeave)
             socket.off('producerClosed', onProducerClosed)
 
 
@@ -356,7 +368,7 @@ export default function Component() {
     return (
         <div className="flex flex-col h-[calc(100vh-4rem)] bg-white text-gray-800">
             <ViewParticipants containerRef={containerRef} user={user!} participants={participants} />
-            <UserManagementModal socket={socket}  open={P_Popup} onOpenChange={setP_Popup} />
+            <UserManagementModal users={participants} socket={socket} open={P_Popup} onOpenChange={setP_Popup} />
             <VideoControls
                 user={user!}
                 participants={participants}

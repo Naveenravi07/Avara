@@ -22,6 +22,7 @@ export class MediasoupGateway implements OnGatewayConnection, OnGatewayDisconnec
     }
     handleDisconnect(client: Socket) {
         console.log("Client disconnected", client.id)
+        client.broadcast.emit("userLeft",{name: client.data.nickname,id: client.data.userId})
     }
 
     @SubscribeMessage('initialize')
@@ -35,7 +36,7 @@ export class MediasoupGateway implements OnGatewayConnection, OnGatewayDisconnec
         client.data.userId = payload.userId
         client.data.nickname = user.name
         await client.join(payload.id)
-        client.broadcast.to(payload.id).emit('newUserJoined', { userId: payload.userId, name: user.name })
+        client.broadcast.to(payload.id).emit('newUserJoined', { userId: payload.userId, name: user.name,imgSrc:user.pfpUrl })
         await this.MediasoupService.addUserToRoom({ name: user.name, id: user.id }, payload.id)
     }
 
