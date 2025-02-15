@@ -11,12 +11,13 @@ import { VideoControls } from './controls';
 import { MediasoupHandler } from './mediasoup';
 import { UserManagementModal } from './userListModal';
 import { useToast } from '@/hooks/use-toast';
+import { useRouter } from "next/navigation"
 
-const DEFAULTUSERIMG = "https://media.istockphoto.com/id/1130884625/vector/user-member-vector-icon-for-ui-user-interface-or-profile-face-avatar-app-in-circle-design.jpg?s=612x612&w=0&k=20&c=1ky-gNHiS2iyLsUPQkxAtPBWH1BZt0PKBB1WBtxQJRE="
 
 export default function Component() {
     const { user } = useAuth()
     const { id } = useParams();
+    const router = useRouter()
     const [participants, setParticipants] = useState<Participant[]>([]);
     const containerRef = useRef<HTMLDivElement>(null);
     const [currentPage, setCurrentPage] = useState(0);
@@ -218,14 +219,24 @@ export default function Component() {
 
 
     const handleConnect = async () => {
+        console.log("Connection success")
         if (!device.current) {
             device.current = new mediasoupClient.Device();
         }
         socket.emit('initialize', { id: id, userId: user?.id },
-            (status: any) => {
+            (status: boolean) => {
+                console.log("Got status of initialize = ",status);
+                if(status == false){
+                    toast({
+                        title:"Meet dosent exist",
+                        variant:"destructive"
+                    })
+                    router.push("/")
+                }else{
+                    socket.emit('getRTPCapabilities', null);
+                }
             },
         );
-        socket.emit('getRTPCapabilities', null);
     };
 
 
@@ -244,7 +255,7 @@ export default function Component() {
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
-            // window.localStorage.setItem("debug", "*")
+             window.localStorage.setItem("debug", "*")
         }
         if (user == undefined || user == null) return
         if (id == undefined || id == null) return

@@ -1,0 +1,3 @@
+Fix auth and error handling inside mediasoup gateway and service. there is sa bit 
+dependancy issue in mediasoup services. Also any message route other than the initialize should be 
+protected 
