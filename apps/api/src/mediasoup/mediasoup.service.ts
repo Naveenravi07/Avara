@@ -75,7 +75,7 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
 
     async addNewRoom(roomId: string) {
         if (this.rooms.has(roomId)) {
-            throw new Error("Room already exists")
+            return 
         }
         this.rooms.set(roomId, {
             router: null,
@@ -84,7 +84,6 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
             consumers: new Map(),
             producers: new Map()
         })
-
     }
 
     async addUserToRoom({ name, id }: { name: string; id: string; }, roomId: string) {
@@ -406,6 +405,25 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
             userId: userId
         }
     }
+
+    leaveRoom(roomId: string, userId: string) {
+        const room = this.rooms.get(roomId);
+
+        if (!room || !room.router) {
+            throw new Error("Room or router not found");
+        }
+
+        let myData = room.users.get(userId);
+        if (!myData) {
+            throw new Error("Failed to get user data");
+        }
+        myData.consumersIds.forEach((id)=>room.consumers.delete(id))
+        myData.producersIds.forEach((id)=>room.producers.delete(id))
+        myData.transportIds.forEach((id)=>room.transports.delete(id))
+        room.users.delete(myData.id)
+        return true
+    }
+
 
     onModuleDestroy() {
         this.worker?.close();

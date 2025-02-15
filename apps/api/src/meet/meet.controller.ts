@@ -15,7 +15,6 @@ export class MeetController {
     @Post()
     @UseGuards(AuthenticatedGuard)
     async create(@Body() data: CreateMeet, @CurrentUser() user: SessionUser) {
-        console.log(user)
         let doc = await this.meetService.create(data, user);
         return new GResponse({
             data: doc,

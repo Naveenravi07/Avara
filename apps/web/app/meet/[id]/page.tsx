@@ -12,7 +12,6 @@ import { MediasoupHandler } from './mediasoup';
 import { UserManagementModal } from './userListModal';
 import { useToast } from '@/hooks/use-toast';
 
-const DEFAULTUSERIMG = "https://media.istockphoto.com/id/1130884625/vector/user-member-vector-icon-for-ui-user-interface-or-profile-face-avatar-app-in-circle-design.jpg?s=612x612&w=0&k=20&c=1ky-gNHiS2iyLsUPQkxAtPBWH1BZt0PKBB1WBtxQJRE="
 
 export default function Component() {
     const { user } = useAuth()

@@ -4,6 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { MeetModule } from './meet/meet.module';
+import { MediasoupModule } from './mediasoup/mediasoup.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { MeetModule } from './meet/meet.module';
     UsersModule,
     AuthModule,
     MeetModule,
+    MediasoupModule
   ],
   controllers: [],
   providers: [],

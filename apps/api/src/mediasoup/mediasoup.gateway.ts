@@ -9,25 +9,29 @@ import {
 import { MediasoupService } from './mediasoup.service';
 import type { Socket } from 'socket.io';
 import { UsersService } from 'src/users/users.service';
+import { MeetService } from 'src/meet/meet.service';
 
 @WebSocketGateway(7000, { cors: { origin: '*' } })
 export class MediasoupGateway implements OnGatewayConnection, OnGatewayDisconnect {
     constructor(
         private readonly MediasoupService: MediasoupService,
-        private readonly userService: UsersService
+        private readonly userService: UsersService,
+        private readonly meetService: MeetService
     ) { }
-
     handleConnection(client: Socket, ...args: any[]) {
         console.log("New conenction req", client.id)
     }
     handleDisconnect(client: Socket) {
         console.log("Client disconnected", client.id)
-        client.broadcast.emit("userLeft",{name: client.data.nickname,id: client.data.userId})
+        client.broadcast.emit("userLeft", { name: client.data.nickname, id: client.data.userId })
+        let status = this.MediasoupService.leaveRoom(client.data.roomId, client.data.userId)
+        return status
     }
 
     @SubscribeMessage('initialize')
     async joinRoom(@ConnectedSocket() client: Socket, @MessageBody() payload: any) {
         let user = await this.userService.getUser(payload.userId);
+        let meet = await this.meetService.getDetailsFromId(payload.id)
         if (!user) {
             client.disconnect()
             throw new Error("User not found with this id")
@@ -35,9 +39,13 @@ export class MediasoupGateway implements OnGatewayConnection, OnGatewayDisconnec
         client.data.roomId = payload.id
         client.data.userId = payload.userId
         client.data.nickname = user.name
+
+        await this.MediasoupService.addNewRoom(meet.id)
         await client.join(payload.id)
-        client.broadcast.to(payload.id).emit('newUserJoined', { userId: payload.userId, name: user.name,imgSrc:user.pfpUrl })
+
+        client.broadcast.to(payload.id).emit('newUserJoined', { userId: payload.userId, name: user.name, imgSrc: user.pfpUrl })
         await this.MediasoupService.addUserToRoom({ name: user.name, id: user.id }, payload.id)
+        return true
     }
 
     @SubscribeMessage('getRTPCapabilities')
@@ -62,7 +70,7 @@ export class MediasoupGateway implements OnGatewayConnection, OnGatewayDisconnec
     @SubscribeMessage('transportProduce')
     async transportProduce(@ConnectedSocket() client: Socket, @MessageBody() payload: any) {
         let producer = await this.MediasoupService.createProducerFromTransport(payload, client.data.roomId, client.data.userId);
-        client.broadcast.to(client.data.roomId).emit('newProducer', { userId: client.data.userId, producerId: producer.id,kind:producer.kind })
+        client.broadcast.to(client.data.roomId).emit('newProducer', { userId: client.data.userId, producerId: producer.id, kind: producer.kind })
         return producer;
     }
 
@@ -94,7 +102,7 @@ export class MediasoupGateway implements OnGatewayConnection, OnGatewayDisconnec
     @SubscribeMessage('closeProducer')
     async closeProducer(@ConnectedSocket() client: Socket, @MessageBody() payload: any) {
         let producerInfo = await this.MediasoupService.closeProducer(client.data.roomId, client.data.userId, payload.producerId);
-        client.broadcast.emit('producerClosed',producerInfo)
+        client.broadcast.emit('producerClosed', producerInfo)
         return producerInfo
     }
 }
