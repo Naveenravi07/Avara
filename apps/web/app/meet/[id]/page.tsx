@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import * as mediasoupClient from 'mediasoup-client';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import useAuth from '@/hooks/useAuth';
 import socket from '@/lib/socket';
 import { Participant } from "../types"
@@ -16,6 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 export default function Component() {
     const { user } = useAuth()
     const { id } = useParams();
+    const router = useRouter()
     const [participants, setParticipants] = useState<Participant[]>([]);
     const containerRef = useRef<HTMLDivElement>(null);
     const [currentPage, setCurrentPage] = useState(0);
@@ -221,10 +222,19 @@ export default function Component() {
             device.current = new mediasoupClient.Device();
         }
         socket.emit('initialize', { id: id, userId: user?.id },
-            (status: any) => {
+            (status: boolean) => {
+                console.log("Got status of initialize = ", status);
+                if (status == false) {
+                    toast({
+                        title: "Meet dosent exist",
+                        variant: "destructive"
+                    })
+                    router.push("/")
+                } else {
+                    socket.emit('getRTPCapabilities', null);
+                }
             },
         );
-        socket.emit('getRTPCapabilities', null);
     };
 
 

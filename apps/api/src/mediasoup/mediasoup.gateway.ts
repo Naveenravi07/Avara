@@ -31,7 +31,12 @@ export class MediasoupGateway implements OnGatewayConnection, OnGatewayDisconnec
     @SubscribeMessage('initialize')
     async joinRoom(@ConnectedSocket() client: Socket, @MessageBody() payload: any) {
         let user = await this.userService.getUser(payload.userId);
-        let meet = await this.meetService.getDetailsFromId(payload.id)
+        let meet
+        try {
+            meet = await this.meetService.getDetailsFromId(payload.id)
+        } catch (e) {
+            return false
+        }
         if (!user) {
             client.disconnect()
             throw new Error("User not found with this id")
