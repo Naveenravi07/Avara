@@ -1,0 +1,1 @@
+ALTER TABLE "meet" ADD COLUMN "inviteOnly" boolean DEFAULT true;

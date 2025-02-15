@@ -10,17 +10,42 @@ import { MediasoupService } from './mediasoup.service';
 import type { Socket } from 'socket.io';
 import { UsersService } from 'src/users/users.service';
 import { MeetService } from 'src/meet/meet.service';
+import { RedisService } from '@liaoliaots/nestjs-redis';
+import { Redis } from 'ioredis';
+import { OnModuleInit } from '@nestjs/common';
 
 @WebSocketGateway(7000, { cors: { origin: '*' } })
-export class MediasoupGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class MediasoupGateway implements OnGatewayConnection, OnGatewayDisconnect, OnModuleInit {
+    private subClient: Redis
+    private roomOwners: Map<string, Socket> = new Map() // roomid,socket
+
     constructor(
         private readonly MediasoupService: MediasoupService,
         private readonly userService: UsersService,
-        private readonly meetService: MeetService
-    ) { }
+        private readonly meetService: MeetService,
+        private readonly redis: RedisService
+    ) {
+        this.subClient = redis.getOrThrow('subscriber')
+    }
+
+    async onModuleInit() {
+        this.subClient.on("message", (ch, msg) => {
+            if (ch == "user-waiting") {
+                let { roomId, userId } = JSON.parse(msg)
+                let owner = this.roomOwners.get(roomId)
+                console.log("Got owners client and socket",owner?.id)
+                owner?.emit("pending-approval", userId)
+            }
+        })
+
+        await this.subClient.subscribe("user-waiting")
+    }
+
     handleConnection(client: Socket, ...args: any[]) {
         console.log("New conenction req", client.id)
     }
+
+
     handleDisconnect(client: Socket) {
         console.log("Client disconnected", client.id)
         client.broadcast.emit("userLeft", { name: client.data.nickname, id: client.data.userId })
@@ -33,7 +58,12 @@ export class MediasoupGateway implements OnGatewayConnection, OnGatewayDisconnec
         let user = await this.userService.getUser(payload.userId);
         let meet
         try {
-            meet = await this.meetService.getDetailsFromId(payload.id)
+            let meet2 = await this.meetService.getDetailsFromId(payload.id)
+            meet = meet2
+            if (meet2.creator == user.id) {
+                this.roomOwners.set(meet2.id, client)
+            }
+
         } catch (e) {
             return false
         }
@@ -110,4 +140,5 @@ export class MediasoupGateway implements OnGatewayConnection, OnGatewayDisconnec
         client.broadcast.emit('producerClosed', producerInfo)
         return producerInfo
     }
+
 }

@@ -14,19 +14,20 @@ import landingImg from "../public/landing.png"
 import Image from "next/image"
 import useAuth from "@/hooks/useAuth"
 import { useRouter } from "next/navigation"
+import { WaitingRoomModal } from "@/components/waiting"
 
 export default function LandingPage() {
     const [currentSlide, setCurrentSlide] = useState(0)
     const { user } = useAuth()
     const router = useRouter()
-    const [url,setUrl] = useState<string>("")
+    const [url, setUrl] = useState<string>("")
+    const [waitModal, setWaitModal] = useState(false)
+
 
     const handleMeetCreation = async () => {
-        console.log(user)
         if (user == undefined || user == null) {
             return router.push("/auth/login")
         }
-
         try {
             let response = await fetch(`${process.env.NEXT_PUBLIC_SERVER_URL}/meet`, {
                 method: 'POST',
@@ -53,12 +54,14 @@ export default function LandingPage() {
 
     }
 
-    const handleMeetJoin = ()=>{
-        if(url.startsWith('http')){
-            router.push(url)
-        }else{
-            router.push(`/meet/${url}`)
-        }
+
+    const handleMeetJoin = () => {
+        setWaitModal(true)
+        //        if (url.startsWith('http')) {
+        //            router.push(url)
+        //        } else {
+        //            router.push(`/meet/${url}`)
+        //        }
     }
 
     const slides = [
@@ -78,6 +81,10 @@ export default function LandingPage() {
 
     return (
         <div className="container mx-auto px-4 min-h-[calc(100vh-4rem)] flex items-center">
+            {
+                waitModal && 
+                <WaitingRoomModal roomId={url} open={waitModal} onOpenChange={setWaitModal} />
+            }
             <div className="grid lg:grid-cols-2 gap-12 items-center w-full max-w-6xl mx-auto">
                 {/* Left Column */}
                 <div className="space-y-8">
@@ -113,7 +120,7 @@ export default function LandingPage() {
                             <Input
                                 placeholder="Enter a code or link"
                                 className="h-11"
-                                onChange={(e)=>setUrl(e.target.value)}
+                                onChange={(e) => setUrl(e.target.value)}
                             />
                             <Button variant="outline" size="lg" onClick={handleMeetJoin}>
                                 Join
@@ -181,5 +188,4 @@ export default function LandingPage() {
         </div>
     )
 }
-
 

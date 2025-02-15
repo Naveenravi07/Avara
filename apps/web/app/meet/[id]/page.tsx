@@ -11,6 +11,7 @@ import { VideoControls } from './controls';
 import { MediasoupHandler } from './mediasoup';
 import { UserManagementModal } from './userListModal';
 import { useToast } from '@/hooks/use-toast';
+import SettingsModal from './settingsModal';
 
 
 export default function Component() {
@@ -23,6 +24,7 @@ export default function Component() {
     const device = useRef<mediasoupClient.Device | null>(null);
     const ms_handler = useRef<MediasoupHandler | null>(null);
     const [P_Popup, setP_Popup] = useState(false)
+    const [S_Popup, setS_Popup] = useState(false)
     const { toast } = useToast()
 
     const getAllConnectedUserInformation = async () => {
@@ -250,6 +252,10 @@ export default function Component() {
         }]);
     };
 
+    const onPendingApprovalReq = async (data: any) => {
+        console.log(data)
+    }
+
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -270,6 +276,7 @@ export default function Component() {
         socket.on('userLeft', onUserLeave)
         socket.on('newProducer', onNewProducerAdded)
         socket.on('producerClosed', onProducerClosed)
+        socket.on('pending-approval', onPendingApprovalReq)
 
         return () => {
             socket.off('connect', handleConnect);
@@ -278,6 +285,7 @@ export default function Component() {
             socket.off('newProducer', onNewProducerAdded)
             socket.off('userLeft', onUserLeave)
             socket.off('producerClosed', onProducerClosed)
+            socket.off('pending-approval', onPendingApprovalReq)
 
 
             if (socket.connected) {
@@ -378,6 +386,7 @@ export default function Component() {
         <div className="flex flex-col h-[calc(100vh-4rem)] bg-white text-gray-800">
             <ViewParticipants containerRef={containerRef} user={user!} participants={participants} />
             <UserManagementModal users={participants} socket={socket} open={P_Popup} onOpenChange={setP_Popup} />
+            <SettingsModal open={S_Popup} onOpenChange={setS_Popup} />
             <VideoControls
                 user={user!}
                 participants={participants}
@@ -385,6 +394,7 @@ export default function Component() {
                 handleMyAudioToggle={handleMyAudioToggle}
                 handleMyVideoToggle={handleMyVideoToggle}
                 handleParticipantsButtonClick={() => { setP_Popup(true) }}
+                hanleSettingsButtonClick={() => { setS_Popup(true) }}
             />
         </div>
     );

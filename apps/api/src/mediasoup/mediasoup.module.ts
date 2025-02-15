@@ -7,6 +7,6 @@ import { MeetModule } from 'src/meet/meet.module';
 @Module({
     imports: [UsersModule,MeetModule],
     providers: [MediasoupGateway,MediasoupService ],
-    exports: [MediasoupService]
+    exports:[MediasoupService]
 })
 export class MediasoupModule { }
