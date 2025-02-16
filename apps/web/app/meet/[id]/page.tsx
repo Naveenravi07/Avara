@@ -385,7 +385,10 @@ export default function Component() {
     return (
         <div className="flex flex-col h-[calc(100vh-4rem)] bg-white text-gray-800">
             <ViewParticipants containerRef={containerRef} user={user!} participants={participants} />
-            <UserManagementModal users={participants} socket={socket} open={P_Popup} onOpenChange={setP_Popup} />
+            {
+                id &&
+                <UserManagementModal roomId={Array.isArray(id) ? id[0]! : id} admitRequests={[]} onAdmit={() => { }} onReject={() => { }} users={participants} socket={socket} open={P_Popup} onOpenChange={setP_Popup} />
+            }
             <SettingsModal open={S_Popup} onOpenChange={setS_Popup} />
             <VideoControls
                 user={user!}

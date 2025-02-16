@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, UsePipes } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, UsePipes, Query, Get } from '@nestjs/common';
 import { MeetService } from './meet.service';
 import { GResponse } from '../../comon/classes/GResponse';
 import { CurrentUser } from '../../comon/decorators/current-user-decorator';
@@ -21,6 +21,13 @@ export class MeetController {
             message: "meet created successfully",
             status: 200
         })
+    }
+
+    @Get('/waiters')
+    @UseGuards(AuthenticatedGuard)
+    async getWaitingClients(@Query('roomId') roomId: string) {
+        let resp = this.meetService.getAdmitRequests(roomId)
+        return resp
     }
 
 }

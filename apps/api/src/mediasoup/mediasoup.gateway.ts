@@ -28,18 +28,26 @@ export class MediasoupGateway implements OnGatewayConnection, OnGatewayDisconnec
         this.subClient = redis.getOrThrow('subscriber')
     }
 
+
     async onModuleInit() {
         this.subClient.on("message", (ch, msg) => {
             if (ch == "user-waiting") {
-                let { roomId, userId } = JSON.parse(msg)
+                let { roomId, userId, userName, pfp }:
+                    { roomId: string, userId: string, userName: string, pfp: string | null } = JSON.parse(msg)
+
                 let owner = this.roomOwners.get(roomId)
-                console.log("Got owners client and socket",owner?.id)
-                owner?.emit("pending-approval", userId)
+
+                owner?.emit("pending-approval", {
+                    roomId: roomId,
+                    userId,
+                    userName,
+                    pfp
+                })
             }
         })
-
         await this.subClient.subscribe("user-waiting")
     }
+
 
     handleConnection(client: Socket, ...args: any[]) {
         console.log("New conenction req", client.id)

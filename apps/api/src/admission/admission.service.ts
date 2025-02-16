@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { RedisService, DEFAULT_REDIS } from '@liaoliaots/nestjs-redis';
+import { RedisService } from '@liaoliaots/nestjs-redis';
 import { Redis } from "ioredis";
 
 @Injectable()
@@ -10,8 +10,8 @@ export class AdmissionService {
         this.redisClient = this.redisService.getOrThrow("publisher");
     }
 
-    public async addUserToWaitingList(roomId: string, userId: string) {
-        let doc = { [`user:${userId}`]: "waiting" };  // Key: userId, Value: status
+    public async addUserToWaitingList(roomId: string, userId: string, userName: string, pfp: string | null) {
+        let doc = { [`user:${userId}`]: JSON.stringify({ status: "waiting", userName, pfp }) };
         await this.redisClient?.hset(`admission:${roomId}`, ...Object.entries(doc).flat());
         return true
     }
