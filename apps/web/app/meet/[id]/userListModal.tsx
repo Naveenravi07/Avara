@@ -10,9 +10,9 @@ import { type Socket } from "socket.io-client";
 import { useEffect, useState } from "react";
 
 type WaitingUser = {
-    userId:string,
-    pfp:string,
-    userName:string
+    userId: string,
+    pfp: string,
+    userName: string
 }
 export function UserManagementModal({
     open = false,
@@ -20,16 +20,12 @@ export function UserManagementModal({
     users,
     roomId,
     socket,
-    onAdmit,
-    onReject
 }: {
     open: boolean,
     onOpenChange: (open: boolean) => void,
     users: Participant[],
-    roomId: String,
+    roomId: string,
     socket: Socket,
-    onAdmit: (userId: string) => void,
-    onReject: (userId: string) => void
 }) {
     const [searchQuery, setSearchQuery] = useState<string>("");
     const [loading, setLoading] = useState<boolean>(false);
@@ -49,9 +45,36 @@ export function UserManagementModal({
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
         })
-        let data : any = await reqs.json()
-        console.log(data)
+        let data: any = await reqs.json()
         setAdmitRequests(data.waitingList)
+    }
+
+    const onAdmitClick = async (userId: string) => {
+        let resp = await fetch(`${process.env.NEXT_PUBLIC_SERVER_URL}/meet/admit`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                userId: userId,
+                roomId: roomId
+            })
+        })
+        let data = await resp.json()
+        console.log(data)
+    }
+
+    const onRejectClick = async (userId: string) => {
+        let resp = await fetch(`${process.env.NEXT_PUBLIC_SERVER_URL}/meet/reject`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                userId: userId,
+                roomId: roomId
+            })
+        })
+        let data = await resp.json()
+        console.log(data)
     }
 
     const displayedUsers = searchQuery
@@ -89,10 +112,11 @@ export function UserManagementModal({
                                         <span className="text-sm font-medium text-zinc-100">{user.userName}</span>
                                     </div>
                                     <div className="flex gap-2">
-                                        <Button variant="success" size="icon" className="text-green-400 hover:bg-green-700" onClick={() => onAdmit(user.id)}>
+                                        <Button variant="default" size="icon" className="text-green-400 hover:bg-green-700"
+                                            onClick={() => onAdmitClick(user.userId)}>
                                             <Check className="h-4 w-4" />
                                         </Button>
-                                        <Button variant="destructive" size="icon" className="text-red-400 hover:bg-red-700" onClick={() => onReject(user.id)}>
+                                        <Button variant="destructive" size="icon" className="text-red-400 hover:bg-red-700" onClick={() => onRejectClick(user.userId)}>
                                             <X className="h-4 w-4" />
                                         </Button>
                                     </div>

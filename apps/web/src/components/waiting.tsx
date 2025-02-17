@@ -36,10 +36,26 @@ export function WaitingRoomModal({
                 })
                 router.push('/')
             } else {
-                console.log("Sending waiting add ")
                 adm_socket.emit("waitingAdd")
             }
         })
+    }
+
+    const handleAdmissionApproval = async (data: string) => {
+        if (data.toLowerCase() == "ok") {
+            router.push(`/meet/${roomId}`)
+        }
+    }
+
+    const handleAdmissionRejected = async (data: string) => {
+        if (data.toLowerCase() == "ok") {
+            toast({
+                title: "The creator rejected your join request",
+                variant:"destructive"
+            })
+            router.push("/")
+            onOpenChange(false)
+        }
     }
 
     React.useEffect(() => {
@@ -47,9 +63,15 @@ export function WaitingRoomModal({
 
         adm_socket.connect()
         adm_socket.on('connect', handleConnect)
+        adm_socket.on('admission-approval', handleAdmissionApproval)
+        adm_socket.on('admission-rejected', handleAdmissionRejected)
 
         return (() => {
             adm_socket.off('connect', handleConnect)
+            adm_socket.off('admission-approval', handleAdmissionApproval)
+            adm_socket.off('admission-rejected', handleAdmissionRejected)
+            adm_socket.disconnect()
+            adm_socket.close()
         })
     }, [user])
 

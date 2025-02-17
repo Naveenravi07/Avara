@@ -7,13 +7,14 @@ import { SessionUser } from '../../src/users/dto/session-user';
 import { eq } from 'drizzle-orm';
 import { RedisService } from '@liaoliaots/nestjs-redis';
 import { Redis } from 'ioredis';
-import { on } from 'events';
+import { UsersService } from 'src/users/users.service';
 
 @Injectable()
 export class MeetService {
     private RedisService: Redis
     constructor(@Inject(DATABASE_CONNECTION)
     private readonly database: NodePgDatabase<typeof schema>,
+        private userService: UsersService,
         private readonly redis: RedisService
     ) {
         this.RedisService = redis.getOrThrow("publisher")
@@ -38,14 +39,51 @@ export class MeetService {
         let arr = Object.entries(users).map(([k, v]) => {
             type WaitingInfo = { status: string, userName: string, pfp: string | null, }
             let obj: WaitingInfo = JSON.parse(v)
+                return {
+                    userId: k.split("user:").at(1),
+                    status: obj.status,
+                    userName: obj.userName,
+                    pfp: obj.pfp
+                }
+        }).filter((o)=>o.status != "admitted" && o.status != "rejected")
+        return { roomId: roomId, waitingList: arr ?? [] }
+    }
 
-            return {
-                userId: k.split("user:").at(1),
-                status: obj.status,
-                userName:obj.userName,
-                pfp:obj.pfp
-            }
-        })
-        return { roomId: roomId, waitingList: arr }
+    async admitUserToMeet(roomId: string, userId: string) {
+        let meet = await this.getDetailsFromId(roomId)
+        let user = await this.userService.getUser(userId)
+
+        let currDoc = await this.RedisService.hget(`admission:${roomId}`, `user:${userId}`)
+        if (currDoc == null) {
+            throw new UnauthorizedException()
+        }
+        type admissionInfo = { status: string, userName: string, pfp: string }
+        let redis_data: admissionInfo = await JSON.parse(currDoc)
+
+        redis_data.status = "admitted"
+        await this.RedisService.hset(`admission:${roomId}`,`user:${userId}`,JSON.stringify(redis_data))
+
+        let data = { userId: user.id, roomId: meet.id }
+        let resp = await this.RedisService.publish("admitted-users", JSON.stringify(data))
+        return resp
+    }
+
+    async rejectUserToMeet(roomId:string,userId:string){
+        let meet = await this.getDetailsFromId(roomId)
+        let user = await this.userService.getUser(userId)
+
+        let currDoc = await this.RedisService.hget(`admission:${roomId}`, `user:${userId}`)
+        if (currDoc == null) {
+            throw new UnauthorizedException()
+        }
+        type admissionInfo = { status: string, userName: string, pfp: string }
+        let redis_data: admissionInfo = await JSON.parse(currDoc)
+
+        redis_data.status = "rejected"
+        await this.RedisService.hset(`admission:${roomId}`,`user:${userId}`,JSON.stringify(redis_data))
+
+        let data = { userId: user.id, roomId: meet.id }
+        let resp = await this.RedisService.publish("rejected-users", JSON.stringify(data))
+        return resp
     }
 }

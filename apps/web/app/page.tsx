@@ -57,11 +57,6 @@ export default function LandingPage() {
 
     const handleMeetJoin = () => {
         setWaitModal(true)
-        //        if (url.startsWith('http')) {
-        //            router.push(url)
-        //        } else {
-        //            router.push(`/meet/${url}`)
-        //        }
     }
 
     const slides = [
