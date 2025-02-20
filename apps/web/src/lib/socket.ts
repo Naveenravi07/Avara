@@ -8,8 +8,13 @@ const socket = io('http://localhost:7000', {
 export default socket;
 
 
-const adm_socket = io('http://localhost:7001', {
-    autoConnect: false,
-});
+function connect_admission_socket(query: Object) {
+    const adm_socket = io('http://localhost:7001', {
+        autoConnect: false,
+        query: query,
+        withCredentials: true
+    });
+    return adm_socket
+}
 
-export {adm_socket}
+export { connect_admission_socket }

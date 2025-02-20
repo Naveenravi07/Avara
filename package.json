@@ -9,6 +9,8 @@
         "test": "turbo run test"
     },
     "devDependencies": {
+        "@types/connect-redis": "^0.0.23",
+        "connect-redis": "^8.0.1",
         "prettier": "^3.2.5",
         "turbo": "^2.2.3",
         "typescript": "5.5.4"

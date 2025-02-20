@@ -5,10 +5,16 @@ import session from 'express-session';
 import passport from 'passport';
 import { ConfigService } from '@nestjs/config';
 import cookieParser from 'cookie-parser';
+import { RedisService } from '@liaoliaots/nestjs-redis';
+import { RedisStore } from 'connect-redis';
+
 
 async function bootstrap() {
     const app = await NestFactory.create(AppModule);
     const configService = app.get(ConfigService);
+    const redisService = app.get(RedisService); // Inject RedisService
+
+
     app.useGlobalFilters(new AllExceptionsFilter());
     //app.useGlobalFilters(new DrizzleExceptionFilter())
 
@@ -23,9 +29,18 @@ async function bootstrap() {
         methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     });
 
+
+    const redisClient = redisService.getOrThrow('publisher');
+    const redisStore = new RedisStore({
+        client: redisClient,
+        prefix: "avara-login:"
+    })
+
+
     app.use(cookieParser());
     app.use(
         session({
+            store: redisStore,
             secret: configService.getOrThrow('SESSION_STORE_SECRET'),
             resave: false,
             saveUninitialized: false,

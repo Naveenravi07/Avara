@@ -1,4 +1,4 @@
-import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { CreateMeet } from './dto/create-meet.dto';
 import { DATABASE_CONNECTION } from '../../src/database/database-connection';
@@ -30,7 +30,7 @@ export class MeetService {
 
     async getDetailsFromId(id: string) {
         const doc = await this.database.select().from(schema.meetTable).where(eq(schema.meetTable.id, id))
-        if (!doc[0]) throw new Error("Meet dosent exists ")
+        if (!doc[0]) throw new NotFoundException("Meet dosent exists ")
         return doc[0];
     }
 

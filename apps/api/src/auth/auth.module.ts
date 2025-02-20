@@ -20,6 +20,5 @@ import { GithubStratergy } from './github.stratergy';
         GithubStratergy,
     ],
     controllers: [AuthController],
-    exports: []
 })
 export class AuthModule { }

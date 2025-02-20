@@ -3,7 +3,7 @@ import { Mic, MicOff, Video, VideoOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { adm_socket } from "@/lib/socket"
+import { connect_admission_socket } from "@/lib/socket"
 import useAuth from "@/hooks/useAuth"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
@@ -25,18 +25,13 @@ export function WaitingRoomModal({
     const { user } = useAuth()
     const router = useRouter()
     const { toast } = useToast()
+    let adm_socket = connect_admission_socket({ roomId: roomId })
 
     const handleConnect = async () => {
         if (!user) return
-        adm_socket.emit('initialize', { userId: user.id, roomId: roomId }, (status: boolean) => {
-            if (status == false) {
-                toast({
-                    title: "You are trying to join an invalid room, exiting..",
-                    variant: "destructive"
-                })
-                router.push('/')
-            } else {
-                adm_socket.emit("waitingAdd")
+        adm_socket.emit('initialize', (status: boolean) => {
+            if (status == true) {
+                adm_socket.emit("waitingAdd") 
             }
         })
     }
@@ -51,25 +46,42 @@ export function WaitingRoomModal({
         if (data.toLowerCase() == "ok") {
             toast({
                 title: "The creator rejected your join request",
-                variant:"destructive"
+                variant: "destructive"
             })
             router.push("/")
             onOpenChange(false)
         }
     }
 
+    const onErrorMessage = async(err:string)=>{
+        toast({
+            title:"Something went wrong",
+            description:err,
+            variant:"destructive"
+        })
+        onOpenChange(false)
+    }
+
+    const handleDisconnect = async()=>{
+        console.log("CLIENT DISCONNECTED")
+        onOpenChange(false)
+    }
+
     React.useEffect(() => {
         if (!user) return
-
         adm_socket.connect()
         adm_socket.on('connect', handleConnect)
         adm_socket.on('admission-approval', handleAdmissionApproval)
         adm_socket.on('admission-rejected', handleAdmissionRejected)
+        adm_socket.on("error",onErrorMessage)
+        adm_socket.on("disconnect",handleDisconnect)
 
         return (() => {
             adm_socket.off('connect', handleConnect)
             adm_socket.off('admission-approval', handleAdmissionApproval)
             adm_socket.off('admission-rejected', handleAdmissionRejected)
+            adm_socket.off("error",onErrorMessage)
+            adm_socket.off("disconnect",handleDisconnect)
             adm_socket.disconnect()
             adm_socket.close()
         })
