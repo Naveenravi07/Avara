@@ -61,6 +61,7 @@ export function UserManagementModal({
         })
         let data = await resp.json()
         console.log(data)
+        fetchAdmitRequests()
     }
 
     const onRejectClick = async (userId: string) => {
@@ -75,6 +76,7 @@ export function UserManagementModal({
         })
         let data = await resp.json()
         console.log(data)
+        fetchAdmitRequests()
     }
 
     const displayedUsers = searchQuery

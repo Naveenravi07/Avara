@@ -15,4 +15,5 @@ export class AdmissionService {
         await this.redisClient?.hset(`admission:${roomId}`, ...Object.entries(doc).flat());
         return true
     }
+
 }

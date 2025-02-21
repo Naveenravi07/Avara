@@ -31,12 +31,13 @@ export class WsSessionGuard implements CanActivate {
         }
 
         const sessionData = JSON.parse(session);
-        let { id, name }: { id: string, name: string } = sessionData.passport.user
+        let { id, name, pfpUrl }: { id: string, name: string, pfpUrl: string } = sessionData.passport.user
         if (!id) {
             throw new WsException('Unauthorized: No user found in session');
         }
         client.data.userId = id
         client.data.userName = name
+        client.data.pfpUrl = pfpUrl
         return true;
     }
 }

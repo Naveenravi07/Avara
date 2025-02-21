@@ -14,6 +14,17 @@ import { RedisService } from '@liaoliaots/nestjs-redis';
 import { Redis } from 'ioredis';
 import { OnModuleInit } from '@nestjs/common';
 
+interface ClientData {
+    roomId: string;
+    userId: string;
+    userName: string
+}
+
+interface CustomSocket extends Socket {
+    data: ClientData;
+}
+
+
 @WebSocketGateway(7000, { cors: { origin: '*' } })
 export class MediasoupGateway implements OnGatewayConnection, OnGatewayDisconnect, OnModuleInit {
     private subClient: Redis
