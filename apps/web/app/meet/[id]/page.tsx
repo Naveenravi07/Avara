@@ -148,7 +148,7 @@ export default function Component() {
     }
 
     const onProducerClosed = async (data: any) => {
-        const { _producerId, userId, kind }: { producerId: string; userId: string; kind: string } = data;
+        const { producerId, userId, kind }: { producerId: string; userId: string; kind: string } = data;
 
         setParticipants((prevPartis) => {
             const userIndex = prevPartis.findIndex(p => p.id === userId);

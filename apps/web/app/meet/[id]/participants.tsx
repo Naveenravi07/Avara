@@ -48,6 +48,16 @@ export function ViewParticipants({ containerRef, participants, user }: { contain
     ///     UI Controls end   
 
 
+    const getInitials = (name: string) => {
+        return name
+            .split(' ')
+            .map(part => part[0])
+            .join('')
+            .toUpperCase()
+            .slice(0, 2);
+    };
+
+
     return (
         <div className="flex-grow overflow-hidden">
             <div
@@ -73,8 +83,21 @@ export function ViewParticipants({ containerRef, participants, user }: { contain
                                     await e.currentTarget.play()
                                 }}
                                 muted={participant.id === user?.id}
-                                className="w-full h-full object-cover"
+                                className={`w-full h-full object-cover ${participant.videoOn ? 'block' : 'hidden'}`}
                             />
+                            
+                            {/* Avatar shown when video is off */}
+                            {!participant.videoOn && (
+                                <div className="w-full h-full flex items-center justify-center bg-gray-300">
+                                    <div className="w-24 h-24 rounded-full bg-white flex items-center justify-center">
+                                        <span className="text-2xl font-semibold text-gray-800">
+                                            {getInitials(participant.name)}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+
+                         
                             <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between bg-white bg-opacity-80 rounded px-2 py-1">
                                 <span className="text-sm font-medium">{participant.name}</span>
                                 <div className="flex space-x-1">
