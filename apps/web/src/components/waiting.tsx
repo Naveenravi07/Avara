@@ -1,12 +1,12 @@
-import * as React from "react"
-import { Mic, MicOff, Video, VideoOff } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { connect_admission_socket } from "@/lib/socket"
-import useAuth from "@/hooks/useAuth"
-import { useToast } from "@/hooks/use-toast"
-import { useRouter } from "next/navigation"
+import * as React from "react";
+import { Mic, MicOff, Video, VideoOff } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { connect_admission_socket } from "@/lib/socket";
+import useAuth from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
+import { useRouter } from "next/navigation";
 
 type WaitingRoomModalProps = {
     open: boolean,
@@ -19,102 +19,169 @@ export function WaitingRoomModal({
     onOpenChange,
     roomId
 }: WaitingRoomModalProps) {
-    const [isMicOn, setIsMicOn] = React.useState(false)
-    const [isVideoOn, setIsVideoOn] = React.useState(false)
-    const videoRef = React.useRef<HTMLVideoElement>(null)
+    const [isMicOn, setIsMicOn] = React.useState(false);
+    const [isVideoOn, setIsVideoOn] = React.useState(false);
+    const videoRef = React.useRef<HTMLVideoElement>(null);
     const [videoDevices, setVideoDevices] = React.useState<MediaDeviceInfo[]>([]);
     const [audioDevices, setAudioDevices] = React.useState<MediaDeviceInfo[]>([]);
-    const { user } = useAuth()
-    const router = useRouter()
-    const { toast } = useToast()
+    const [selectedVideoDeviceId, setSelectedVideoDeviceId] = React.useState<string | null>(null);
+    const [selectedAudioDeviceId, setSelectedAudioDeviceId] = React.useState<string | null>(null);
+    const { user } = useAuth();
+    const router = useRouter();
+    const { toast } = useToast();
 
-    let adm_socket = connect_admission_socket({ roomId: roomId })
+    let adm_socket = connect_admission_socket({ roomId: roomId });
 
+    // Save state to localStorage whenever isVideoOn or isMicOn changes
+    React.useEffect(() => {
+        localStorage.setItem('initialMediaState', JSON.stringify({
+            video: isVideoOn,
+            audio: isMicOn
+        }));
+    }, [isVideoOn, isMicOn]);
 
     const handleVideoToggle = async () => {
+        if (isVideoOn) {
+            // Stop the video stream
+            if (videoRef.current && videoRef.current.srcObject) {
+                (videoRef.current.srcObject as MediaStream).getTracks().forEach(track => track.stop());
+                videoRef.current.srcObject = null;
+            }
+        } else {
+            // Start the video stream with the selected camera
+            if (selectedVideoDeviceId) {
+                const constraints = { video: { deviceId: { exact: selectedVideoDeviceId } } };
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                if (videoRef.current) {
+                    videoRef.current.srcObject = stream;
+                }
+            }
+        }
+        setIsVideoOn(!isVideoOn);
     };
 
     const handleMicToggle = async () => {
-
-    }
+        if (isMicOn) {
+            // Stop the audio stream
+            if (videoRef.current && videoRef.current.srcObject) {
+                (videoRef.current.srcObject as MediaStream).getAudioTracks().forEach(track => track.stop());
+            }
+        } else {
+            // Start the audio stream with the selected microphone
+            if (selectedAudioDeviceId) {
+                const constraints = { audio: { deviceId: { exact: selectedAudioDeviceId } } };
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                if (videoRef.current && videoRef.current.srcObject) {
+                    // Add the audio track to the existing video stream (if any)
+                    stream.getAudioTracks().forEach(track => {
+                        (videoRef.current!.srcObject as MediaStream).addTrack(track);
+                    });
+                }
+            }
+        }
+        setIsMicOn(!isMicOn);
+    };
 
     const handleConnect = async () => {
-        if (!user) return
+        if (!user) return;
         adm_socket.emit('initialize', (status: boolean) => {
             if (status == true) {
-                adm_socket.emit("waitingAdd")
+                adm_socket.emit("waitingAdd");
             }
-        })
-    }
+        });
+    };
 
     const handleAdmissionApproval = async (data: string) => {
         if (data.toLowerCase() == "ok") {
-
             localStorage.setItem('initialMediaState', JSON.stringify({
                 video: isVideoOn,
                 audio: isMicOn
             }));
-            console.log(localStorage.getItem('initialMediaState'))
+            console.log(localStorage.getItem('initialMediaState'));
             router.push(`/meet/${roomId}`);
         }
-    }
+    };
 
     const handleAdmissionRejected = async (data: string) => {
         if (data.toLowerCase() == "ok") {
             toast({
                 title: "The creator rejected your join request",
                 variant: "destructive"
-            })
-            router.push("/")
-            onOpenChange(false)
+            });
+            router.push("/");
+            onOpenChange(false);
         }
-    }
+    };
 
     const onErrorMessage = async (err: string) => {
         toast({
             title: "Something went wrong",
             description: err,
             variant: "destructive"
-        })
-        onOpenChange(false)
-    }
+        });
+        onOpenChange(false);
+    };
 
     const handleDisconnect = async () => {
-        console.log("CLIENT DISCONNECTED")
-        onOpenChange(false)
-    }
+        console.log("CLIENT DISCONNECTED");
+        onOpenChange(false);
+    };
+
+    const handleCameraChange = async (deviceId: string) => {
+        setSelectedVideoDeviceId(deviceId);
+        if (isVideoOn) {
+            const constraints = { video: { deviceId: { exact: deviceId } } };
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
+            if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+            }
+        }
+    };
+
+    const handleMicrophoneChange = async (deviceId: string) => {
+        setSelectedAudioDeviceId(deviceId);
+        if (isMicOn) {
+            const constraints = { audio: { deviceId: { exact: deviceId } } };
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
+            if (videoRef.current && videoRef.current.srcObject) {
+                // Replace the existing audio track with the new one
+                (videoRef.current.srcObject as MediaStream).getAudioTracks().forEach(track => track.stop());
+                stream.getAudioTracks().forEach(track => {
+                    (videoRef.current!.srcObject as MediaStream).addTrack(track);
+                });
+            }
+        }
+    };
 
     React.useEffect(() => {
-        if (!user) return
-        adm_socket.connect()
-        adm_socket.on('connect', handleConnect)
-        adm_socket.on('admission-approval', handleAdmissionApproval)
-        adm_socket.on('admission-rejected', handleAdmissionRejected)
-        adm_socket.on("error", onErrorMessage)
-        adm_socket.on("disconnect", handleDisconnect)
-
-        return (() => {
-            adm_socket.off('connect', handleConnect)
-            adm_socket.off('admission-approval', handleAdmissionApproval)
-            adm_socket.off('admission-rejected', handleAdmissionRejected)
-            adm_socket.off("error", onErrorMessage)
-            adm_socket.off("disconnect", handleDisconnect)
-            adm_socket.disconnect()
-            adm_socket.close()
-        })
-    }, [user])
-
-
-    React.useEffect(() => {
-        // Fetch available video and audio devices
-        navigator.mediaDevices.enumerateDevices().then((deviceList) => {
-            setVideoDevices(deviceList.filter((d) => d.kind === "videoinput"));
-            setAudioDevices(deviceList.filter((d) => d.kind === "audioinput"));
+        navigator.mediaDevices.getUserMedia({ audio: true, video: true }).then(() => {
+            navigator.mediaDevices.enumerateDevices().then((deviceList) => {
+                console.log(deviceList);
+                setVideoDevices(deviceList.filter((d) => d.kind === "videoinput" && d.deviceId != ""));
+                setAudioDevices(deviceList.filter((d) => d.kind === "audioinput" && d.deviceId != ""));
+            });
         });
     }, []);
 
+    React.useEffect(() => {
+        if (!user) return;
+        adm_socket.connect();
+        adm_socket.on('connect', handleConnect);
+        adm_socket.on('admission-approval', handleAdmissionApproval);
+        adm_socket.on('admission-rejected', handleAdmissionRejected);
+        adm_socket.on("error", onErrorMessage);
+        adm_socket.on("disconnect", handleDisconnect);
 
-
+        return (() => {
+            adm_socket.off('connect', handleConnect);
+            adm_socket.off('admission-approval', handleAdmissionApproval);
+            adm_socket.off('admission-rejected', handleAdmissionRejected);
+            adm_socket.off("error", onErrorMessage);
+            adm_socket.off("disconnect", handleDisconnect);
+            adm_socket.disconnect();
+            adm_socket.close();
+        });
+    }, [user]);
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -158,25 +225,31 @@ export function WaitingRoomModal({
                     <div className="space-y-4">
                         <div className="space-y-2">
                             <label className="text-sm text-white">Microphone Input</label>
-                            <Select>
+                            <Select onValueChange={handleMicrophoneChange}>
                                 <SelectTrigger className="w-full bg-zinc-900 border-white/20 text-white">
                                     <SelectValue placeholder="Select microphone" />
                                 </SelectTrigger>
                                 <SelectContent className="bg-zinc-900 border-white/20">
-                                    <SelectItem value="default">Default Microphone</SelectItem>
-                                    <SelectItem value="built-in">Built-in Microphone</SelectItem>
+                                    {audioDevices.map((device) => (
+                                        <SelectItem key={device.deviceId} value={device.deviceId} style={{ color: '#fff' }}>
+                                            {device.label || `Microphone ${audioDevices.indexOf(device) + 1}`}
+                                        </SelectItem>
+                                    ))}
                                 </SelectContent>
                             </Select>
                         </div>
                         <div className="space-y-2">
                             <label className="text-sm text-white">Camera Input</label>
-                            <Select>
+                            <Select onValueChange={handleCameraChange}>
                                 <SelectTrigger className="w-full bg-zinc-900 border-white/20 text-white">
                                     <SelectValue placeholder="Select camera" />
                                 </SelectTrigger>
                                 <SelectContent className="bg-zinc-900 border-white/20">
-                                    <SelectItem value="default">Default Camera</SelectItem>
-                                    <SelectItem value="built-in">Built-in Camera</SelectItem>
+                                    {videoDevices.map((device) => (
+                                        <SelectItem key={device.deviceId} value={device.deviceId} style={{ color: '#fff' }}>
+                                            {device.label || `Camera ${videoDevices.indexOf(device) + 1}`}
+                                        </SelectItem>
+                                    ))}
                                 </SelectContent>
                             </Select>
                         </div>
@@ -184,6 +257,5 @@ export function WaitingRoomModal({
                 </div>
             </DialogContent>
         </Dialog>
-    )
+    );
 }
-
