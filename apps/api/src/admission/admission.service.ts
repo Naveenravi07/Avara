@@ -1,7 +1,8 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 import { RedisService } from '@liaoliaots/nestjs-redis';
 import { Redis } from "ioredis";
 import { CustomSocket } from "./dto/admission-socket";
+import { AdmissionUser } from "./dto/admission-user";
 
 @Injectable()
 export class AdmissionService {
@@ -86,5 +87,11 @@ export class AdmissionService {
         }
     }
 
+    public async getWaitingUserFromRedis(roomId:string,userId:string){
+        let data = await this.pubClient.hget(`admission:${roomId}`, `user:${userId}`);
+        if (!data) return null
+        let userData : AdmissionUser = JSON.parse(data)
+        return userData
+    }
 
 }

@@ -293,6 +293,16 @@ export default function Component() {
         socket.on('pending-approval', onPendingApprovalReq)
         socket.on('error', onErrorMessage)
 
+        // Check for initial media state
+        const initialMediaState = localStorage.getItem('initialMediaState');
+        console.log(initialMediaState)
+        if (initialMediaState) {
+            const { video, audio } = JSON.parse(initialMediaState);
+            if (video) handleMyVideoToggle();
+            if (audio) handleMyAudioToggle();
+            localStorage.removeItem('initialMediaState'); // Clean up
+        }
+
         return () => {
             socket.off('connect', handleConnect);
             socket.off('RTPCapabilities', handleRTPCapabilities);

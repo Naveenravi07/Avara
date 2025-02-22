@@ -60,6 +60,11 @@ export class AdmissionGateway implements OnGatewayConnection, OnGatewayDisconnec
     @SubscribeMessage("initialize")
     async initialize(client: CustomSocket) {
         console.log("Initialize = ", client.data)
+        let userInfo = await this.admissionService.getWaitingUserFromRedis(client.data.roomId,client.data.userId)
+        if(userInfo?.status == "admitted"){
+            client.emit("admission-approval","Ok")
+            return
+        }
         return true
     }
 
