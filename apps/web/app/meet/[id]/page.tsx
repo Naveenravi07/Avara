@@ -23,9 +23,11 @@ export default function Component() {
     const [currentPage, setCurrentPage] = useState(0);
     const device = useRef<mediasoupClient.Device | null>(null);
     const ms_handler = useRef<MediasoupHandler | null>(null);
+    const [userListNoti,setUserListNoti] = useState(false)
     const [P_Popup, setP_Popup] = useState(false)
     const [S_Popup, setS_Popup] = useState(false)
     const { toast } = useToast()
+    const [notifications, setNotifications] = useState<string[]>([]);
 
     const getAllConnectedUserInformation = async () => {
         socket.emit('getAllUsersInRoom', null, (response: any) => {
@@ -223,7 +225,7 @@ export default function Component() {
         if (!device.current) {
             device.current = new mediasoupClient.Device();
         }
-        console.log("Emitting initialize with id = ",id)
+        console.log("Emitting initialize with id = ", id)
         socket.emit('initialize', { id: id },
             (status: boolean) => {
                 console.log("Got status of initialize = ", status);
@@ -254,6 +256,9 @@ export default function Component() {
     };
 
     const onPendingApprovalReq = async (data: any) => {
+        let wav = new Audio("/userarrived.wav") 
+        wav.play()
+        setNotifications(prev => [...prev, 'userList']);
         console.log(data)
     }
 
@@ -269,6 +274,7 @@ export default function Component() {
         if (typeof window !== 'undefined') {
             // window.localStorage.setItem("debug", "*")
         }
+
         if (user == undefined || user == null) return
         if (id == undefined || id == null) return
 
@@ -390,14 +396,17 @@ export default function Component() {
         }
     };
 
+    const handleParticipantsButtonClick = () => {
+        setP_Popup(true);
+        setNotifications(prev => prev.filter(n => n !== 'userList'));
+    };
 
-
-    return (
+    return user && (
         <div className="flex flex-col h-[calc(100vh-4rem)] bg-white text-gray-800">
             <ViewParticipants containerRef={containerRef} user={user!} participants={participants} />
             {
                 id &&
-                <UserManagementModal roomId={Array.isArray(id) ? id[0]! : id} admitRequests={[]} onAdmit={() => { }} onReject={() => { }} users={participants} socket={socket} open={P_Popup} onOpenChange={setP_Popup} />
+                <UserManagementModal roomId={Array.isArray(id) ? id[0]! : id} users={participants} socket={socket} open={P_Popup} onOpenChange={setP_Popup} />
             }
             <SettingsModal open={S_Popup} onOpenChange={setS_Popup} />
             <VideoControls
@@ -406,8 +415,9 @@ export default function Component() {
                 setCurrentPage={setCurrentPage}
                 handleMyAudioToggle={handleMyAudioToggle}
                 handleMyVideoToggle={handleMyVideoToggle}
-                handleParticipantsButtonClick={() => { setP_Popup(true) }}
+                handleParticipantsButtonClick={handleParticipantsButtonClick}
                 hanleSettingsButtonClick={() => { setS_Popup(true) }}
+                notifications={notifications}
             />
         </div>
     );

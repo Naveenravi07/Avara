@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Participant, participantsPerPage } from "../types"
 import { ChevronLeft, ChevronRight, Mic, MicOff, Settings, Users, Video, VideoOff } from 'lucide-react';
 import { User } from "@/types/user/user";
+import { cn } from "@/lib/utils";
 
 export function VideoControls({
     participants,
@@ -10,7 +11,8 @@ export function VideoControls({
     setCurrentPage,
     user,
     handleParticipantsButtonClick,
-    hanleSettingsButtonClick
+    hanleSettingsButtonClick,
+    notifications
 }
     : {
         setCurrentPage: React.Dispatch<React.SetStateAction<number>>,
@@ -18,8 +20,9 @@ export function VideoControls({
         user: User,
         handleMyAudioToggle: () => void,
         handleMyVideoToggle: () => Promise<void>,
-        handleParticipantsButtonClick: () => void
-        hanleSettingsButtonClick: () => void
+        handleParticipantsButtonClick: () => void,
+        hanleSettingsButtonClick: () => void,
+        notifications: string[]
     }) {
     const totalPages = Math.ceil(participants.length / participantsPerPage);
     const handleNextPage = () => {
@@ -51,9 +54,14 @@ export function VideoControls({
                 })()}
             </Button>
 
-            <Button onClick={handleParticipantsButtonClick} variant="link" size="icon">
-                <Users className="h-4 w-4 text-green-600" />
-            </Button>
+            <div className="relative">
+                <Button onClick={handleParticipantsButtonClick} variant="link" size="icon">
+                    <Users className="h-4 w-4 text-green-600" />
+                </Button>
+                {notifications.includes('userList') && (
+                    <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
+                )}
+            </div>
             <Button onClick={hanleSettingsButtonClick} variant="link" size="icon">
                 <Settings className="h-4 w-4 text-green-600" />
             </Button>
