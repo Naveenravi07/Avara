@@ -7,144 +7,145 @@ import {
     WebSocketGateway,
 } from '@nestjs/websockets';
 import { MediasoupService } from './mediasoup.service';
-import type { Socket } from 'socket.io';
-import { UsersService } from 'src/users/users.service';
 import { MeetService } from 'src/meet/meet.service';
-import { RedisService } from '@liaoliaots/nestjs-redis';
-import { Redis } from 'ioredis';
-import { OnModuleInit } from '@nestjs/common';
+import { OnModuleInit, UseFilters, UseGuards } from '@nestjs/common';
+import { WsSessionGuard } from 'src/auth/websocket-guard';
+import { WebsocketExceptionsFilter } from 'comon/filters/ws-execption-filter';
+import { type CustomSocket } from 'src/admission/dto/admission-socket';
+import { initializeMeetingReqSchema, type InitializeMeet } from './dto/initialize-meeting';
+import { ZodValidationPipe } from 'comon/pipes/zodValidationPipe';
+import { createTransportReqSchema, type CreateTrasnsportReq } from './dto/create-transport-req';
+import { type TransportConnectReq, transportConnectReqSchema } from './dto/transport-connect-req';
+import { type TransportProduceReq, transportProduceReqSchema } from './dto/transport-produce-req';
+import { type TransportConsumeReq, transportConsumeReqSchema } from './dto/transport-cnsume-req';
+import { type ResumeConsumeTransportReq, resumeConsumeTransportReqSchema } from './dto/resume-consume-transport-req';
+import { type ConsumeSingleUserReq, consumeSingleUserReqSchema } from './dto/consume-single-user-req';
+import { type CloseProducerReq, closeProducerReqSchema } from './dto/close-producer-req';
 
 
-@WebSocketGateway(7000, { cors: { origin: '*' } })
+@UseGuards(WsSessionGuard)
+@UseFilters(WebsocketExceptionsFilter)
+@WebSocketGateway(7000, { cors: { origin: 'http://localhost:5000', credentials: true } })
 export class MediasoupGateway implements OnGatewayConnection, OnGatewayDisconnect, OnModuleInit {
-    private subClient: Redis
-    private roomOwners: Map<string, Socket> = new Map() // roomid,socket
 
     constructor(
         private readonly MediasoupService: MediasoupService,
-        private readonly userService: UsersService,
         private readonly meetService: MeetService,
-        private readonly redis: RedisService
-    ) {
-        this.subClient = redis.getOrThrow('subscriber')
-    }
-
+    ) { }
 
     async onModuleInit() {
-        this.subClient.on("message", (ch, msg) => {
-            if (ch == "user-waiting") {
-                let { roomId, userId, userName, pfp }:
-                    { roomId: string, userId: string, userName: string, pfp: string | null } = JSON.parse(msg)
-
-                let owner = this.roomOwners.get(roomId)
-
-                owner?.emit("pending-approval", {
-                    roomId: roomId,
-                    userId,
-                    userName,
-                    pfp
-                })
-            }
-        })
-        await this.subClient.subscribe("user-waiting")
+        await this.MediasoupService.subscribeToMessages()
     }
 
-
-    handleConnection(client: Socket, ...args: any[]) {
+    handleConnection(client: CustomSocket) {
         console.log("New conenction req", client.id)
     }
 
+    handleDisconnect(client: CustomSocket) {
+        try {
+            console.log("Client disconnected", client.id)
+            client.broadcast.emit("userLeft", { name: client.data.userName, id: client.data.userId })
+            let status = this.MediasoupService.leaveRoom(client.data.roomId, client.data.userId)
+            return status
+        } catch (err) {
 
-    handleDisconnect(client: Socket) {
-        console.log("Client disconnected", client.id)
-        client.broadcast.emit("userLeft", { name: client.data.nickname, id: client.data.userId })
-        let status = this.MediasoupService.leaveRoom(client.data.roomId, client.data.userId)
-        return status
+        }
     }
 
+
     @SubscribeMessage('initialize')
-    async joinRoom(@ConnectedSocket() client: Socket, @MessageBody() payload: any) {
-        let user = await this.userService.getUser(payload.userId);
-        let meet
-        try {
-            let meet2 = await this.meetService.getDetailsFromId(payload.id)
-            meet = meet2
-            if (meet2.creator == user.id) {
-                this.roomOwners.set(meet2.id, client)
-            }
+    async joinRoom(
+        @ConnectedSocket() client: CustomSocket,
+        @MessageBody(new ZodValidationPipe(initializeMeetingReqSchema)) payload: InitializeMeet) {
 
-        } catch (e) {
-            return false
+        let { userId, userName, pfpUrl } = client.data
+
+        let meet = await this.meetService.getDetailsFromId(payload.id)
+        if (meet.creator == userId) {
+            this.MediasoupService.addUserToOwnerList(client, meet.id)
         }
-        if (!user) {
-            client.disconnect()
-            throw new Error("User not found with this id")
-        }
+
         client.data.roomId = payload.id
-        client.data.userId = payload.userId
-        client.data.nickname = user.name
-
         await this.MediasoupService.addNewRoom(meet.id)
         await client.join(payload.id)
 
-        client.broadcast.to(payload.id).emit('newUserJoined', { userId: payload.userId, name: user.name, imgSrc: user.pfpUrl })
-        await this.MediasoupService.addUserToRoom({ name: user.name, id: user.id }, payload.id)
+        client.broadcast.to(payload.id).emit('newUserJoined', { userId: userId, name: userName, imgSrc: pfpUrl })
+        await this.MediasoupService.addUserToRoom({ name: userName, id: userId }, payload.id)
         return true
     }
 
+
+
     @SubscribeMessage('getRTPCapabilities')
-    async getRTPCapabilities(@ConnectedSocket() client: Socket) {
-        let roomId = client.data.roomId
-        const capabilities = await this.MediasoupService.getRouterCapabilities(roomId);
+    async getRTPCapabilities(@ConnectedSocket() client: CustomSocket) {
+        const capabilities = await this.MediasoupService.getRouterCapabilities(client.data.roomId);
         client.emit('RTPCapabilities', { data: capabilities });
     }
 
+
     @SubscribeMessage('createTransport')
-    async createTransport(@ConnectedSocket() client: Socket, @MessageBody() payload: any) {
+    async createTransport(
+        @ConnectedSocket() client: CustomSocket,
+        @MessageBody(new ZodValidationPipe(createTransportReqSchema)) payload: CreateTrasnsportReq) {
         const transport = await this.MediasoupService.createTransport(client.data.roomId, client.data.userId, payload.consumer);
         return transport
     }
 
     @SubscribeMessage('transportConnect')
-    async transportConnect(@ConnectedSocket() client: Socket, @MessageBody() payload: any) {
+    async transportConnect(
+        @ConnectedSocket() client: CustomSocket,
+        @MessageBody(new ZodValidationPipe(transportConnectReqSchema)) payload: TransportConnectReq) {
         await this.MediasoupService.setDtlsParameters(payload.transportId, payload.dtlsParameters, client.data.roomId, payload.consumer);
         return true
     }
 
     @SubscribeMessage('transportProduce')
-    async transportProduce(@ConnectedSocket() client: Socket, @MessageBody() payload: any) {
+    async transportProduce(
+        @ConnectedSocket() client: CustomSocket,
+        @MessageBody(new ZodValidationPipe(transportProduceReqSchema)) payload: TransportProduceReq) {
         let producer = await this.MediasoupService.createProducerFromTransport(payload, client.data.roomId, client.data.userId);
         client.broadcast.to(client.data.roomId).emit('newProducer', { userId: client.data.userId, producerId: producer.id, kind: producer.kind })
         return producer;
     }
 
     @SubscribeMessage('transportConsume')
-    async transportConsume(@ConnectedSocket() client: Socket, @MessageBody() payload: any) {
+    async transportConsume(
+        @ConnectedSocket() client: CustomSocket,
+        @MessageBody(new ZodValidationPipe(transportConsumeReqSchema)) payload: TransportConsumeReq) {
         let consumerInfo = await this.MediasoupService.createConsumerFromTransport(payload, client.data.roomId, client.data.userId);
         return consumerInfo;
     }
-    @SubscribeMessage('resumeConsumeTransport')
-    async resumeConsumeTransport(@ConnectedSocket() client: Socket, @MessageBody() payload: any) {
-        let status = await this.MediasoupService.resumeConsumerTransport(client.data.roomId, payload.consumerId);
 
+
+    @SubscribeMessage('resumeConsumeTransport')
+    async resumeConsumeTransport(
+        @ConnectedSocket() client: CustomSocket,
+        @MessageBody(new ZodValidationPipe(resumeConsumeTransportReqSchema)) payload: ResumeConsumeTransportReq) {
+        let status = await this.MediasoupService.resumeConsumerTransport(client.data.roomId, payload.consumerId);
         return status;
     }
 
+
     @SubscribeMessage('getAllUsersInRoom')
-    async getAllUsersInformation(@ConnectedSocket() client: Socket) {
+    async getAllUsersInformation(@ConnectedSocket() client: CustomSocket) {
         let users = await this.MediasoupService.getAllUserDetailsInRoom(client.data.roomId)
         return users
     }
 
+
     @SubscribeMessage('consumeNewUser')
-    async consumeNewUser(@ConnectedSocket() client: Socket, @MessageBody() payload: any) {
-        let consumersInfo = await this.MediasoupService.consumeSingleUser(payload, client.data.roomId, client.data.userId, payload.producerId);
+    async consumeNewUser(
+        @ConnectedSocket() client: CustomSocket,
+        @MessageBody(new ZodValidationPipe(consumeSingleUserReqSchema)) payload: ConsumeSingleUserReq) {
+        let consumersInfo = await this.MediasoupService.consumeSingleUser(payload, client.data.roomId, client.data.userId);
         return consumersInfo
     }
 
 
     @SubscribeMessage('closeProducer')
-    async closeProducer(@ConnectedSocket() client: Socket, @MessageBody() payload: any) {
+    async closeProducer(
+        @ConnectedSocket() client: CustomSocket,
+        @MessageBody(new ZodValidationPipe(closeProducerReqSchema)) payload: CloseProducerReq) {
         let producerInfo = await this.MediasoupService.closeProducer(client.data.roomId, client.data.userId, payload.producerId);
         client.broadcast.emit('producerClosed', producerInfo)
         return producerInfo

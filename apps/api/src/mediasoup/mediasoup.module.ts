@@ -3,9 +3,10 @@ import { MediasoupGateway } from './mediasoup.gateway';
 import { UsersModule } from 'src/users/users.module';
 import { MediasoupService } from './mediasoup.service';
 import { MeetModule } from 'src/meet/meet.module';
+import { AuthModule } from 'src/auth/auth.module';
 
 @Module({
-    imports: [UsersModule,MeetModule],
+    imports: [UsersModule,MeetModule,AuthModule],
     providers: [MediasoupGateway,MediasoupService ],
     exports:[MediasoupService]
 })

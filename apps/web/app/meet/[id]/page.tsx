@@ -223,7 +223,8 @@ export default function Component() {
         if (!device.current) {
             device.current = new mediasoupClient.Device();
         }
-        socket.emit('initialize', { id: id, userId: user?.id },
+        console.log("Emitting initialize with id = ",id)
+        socket.emit('initialize', { id: id },
             (status: boolean) => {
                 console.log("Got status of initialize = ", status);
                 if (status == false) {
@@ -256,6 +257,13 @@ export default function Component() {
         console.log(data)
     }
 
+    const onErrorMessage = async (err: any) => {
+        toast({
+            title: "Something went wrong",
+            description: err.message ?? "",
+            variant: "destructive"
+        })
+    }
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -277,6 +285,7 @@ export default function Component() {
         socket.on('newProducer', onNewProducerAdded)
         socket.on('producerClosed', onProducerClosed)
         socket.on('pending-approval', onPendingApprovalReq)
+        socket.on('error', onErrorMessage)
 
         return () => {
             socket.off('connect', handleConnect);
@@ -286,6 +295,7 @@ export default function Component() {
             socket.off('userLeft', onUserLeave)
             socket.off('producerClosed', onProducerClosed)
             socket.off('pending-approval', onPendingApprovalReq)
+            socket.off('error', onErrorMessage)
 
 
             if (socket.connected) {

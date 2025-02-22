@@ -4,8 +4,8 @@ import { io } from 'socket.io-client';
 
 const socket = io('http://localhost:7000', {
     autoConnect: false,
+    withCredentials:true
 });
-export default socket;
 
 
 function connect_admission_socket(query: Object) {
@@ -17,4 +17,5 @@ function connect_admission_socket(query: Object) {
     return adm_socket
 }
 
+export default socket;
 export { connect_admission_socket }
