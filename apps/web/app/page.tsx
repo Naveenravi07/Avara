@@ -76,10 +76,6 @@ export default function LandingPage() {
 
     return (
         <div className="container mx-auto px-4 min-h-[calc(100vh-4rem)] flex items-center">
-            {
-                waitModal && 
-                <WaitingRoomModal roomId={url} open={waitModal} onOpenChange={setWaitModal} />
-            }
             <div className="grid lg:grid-cols-2 gap-12 items-center w-full max-w-6xl mx-auto">
                 {/* Left Column */}
                 <div className="space-y-8">
@@ -104,7 +100,7 @@ export default function LandingPage() {
                                     <Video className="mr-2 h-4 w-4" />
                                     Start an instant meeting
                                 </DropdownMenuItem>
-                                <DropdownMenuItem className="cursor-pointer">
+                                <DropdownMenuItem disabled className="cursor-pointer">
                                     <Calendar className="mr-2 h-4 w-4" />
                                     Schedule for later
                                 </DropdownMenuItem>
@@ -122,6 +118,11 @@ export default function LandingPage() {
                             </Button>
                         </div>
                     </div>
+
+                    {
+                        waitModal &&
+                        <WaitingRoomModal roomId={url} open={waitModal} onOpenChange={setWaitModal} />
+                    }
 
                     <p className="text-sm text-muted-foreground">
                         <a href="#" className="text-primary hover:underline">Learn more</a> about our video chat

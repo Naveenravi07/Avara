@@ -23,11 +23,11 @@ export default function Component() {
     const [currentPage, setCurrentPage] = useState(0);
     const device = useRef<mediasoupClient.Device | null>(null);
     const ms_handler = useRef<MediasoupHandler | null>(null);
-    const [userListNoti,setUserListNoti] = useState(false)
     const [P_Popup, setP_Popup] = useState(false)
     const [S_Popup, setS_Popup] = useState(false)
     const { toast } = useToast()
     const [notifications, setNotifications] = useState<string[]>([]);
+    const [isInitialized, setIsInitialized] = useState(false);
 
     const getAllConnectedUserInformation = async () => {
         socket.emit('getAllUsersInRoom', null, (response: any) => {
@@ -55,8 +55,6 @@ export default function Component() {
             .then(() => console.log("Send Transport Created and attached events globally"))
             .catch(() => console.log("Send Transport Creation failed"))
     };
-
-
 
     const receiveAllVideoFromServer = async () => {
         await ms_handler.current?.createRecvTransport();
@@ -91,7 +89,6 @@ export default function Component() {
             return newP;
         });
     }
-
 
 
     const consumeNewlyJoinedConsumer = async (data: any) => {
@@ -228,15 +225,14 @@ export default function Component() {
         console.log("Emitting initialize with id = ", id)
         socket.emit('initialize', { id: id },
             (status: boolean) => {
-                console.log("Got status of initialize = ", status);
                 if (status == false) {
                     toast({
-                        title: "Meet dosent exist",
-                        variant: "destructive"
+                        title: "Not authorized",
                     })
                     router.push("/")
                 } else {
                     socket.emit('getRTPCapabilities', null);
+                    setIsInitialized(true); // Set initialization state to true
                 }
             },
         );
@@ -256,7 +252,7 @@ export default function Component() {
     };
 
     const onPendingApprovalReq = async (data: any) => {
-        let wav = new Audio("/userarrived.wav") 
+        let wav = new Audio("/userarrived.wav")
         wav.play()
         setNotifications(prev => [...prev, 'userList']);
         console.log(data)
@@ -293,16 +289,6 @@ export default function Component() {
         socket.on('pending-approval', onPendingApprovalReq)
         socket.on('error', onErrorMessage)
 
-        // Check for initial media state
-        const initialMediaState = localStorage.getItem('initialMediaState');
-        console.log(initialMediaState)
-        if (initialMediaState) {
-            const { video, audio } = JSON.parse(initialMediaState);
-            if (video) handleMyVideoToggle();
-            if (audio) handleMyAudioToggle();
-            localStorage.removeItem('initialMediaState'); // Clean up
-        }
-
         return () => {
             socket.off('connect', handleConnect);
             socket.off('RTPCapabilities', handleRTPCapabilities);
@@ -325,19 +311,52 @@ export default function Component() {
     }, [user, id]);
 
 
+    useEffect(() => {
+        if (isInitialized) {
+            const fetchInitialMediaState = async () => {
+                console.log("GETTING initialMediaState");
+                const initialMediaState = localStorage.getItem("initialMediaState");
+                console.log(initialMediaState);
+                if (initialMediaState) {
+                    const { video, audio } = JSON.parse(initialMediaState);
+                    console.log("SETTING VIDEO AND AUDIO ", video, audio);
+
+                    let videoResult = true, audioResult = true;
+
+                    if (video) videoResult = await handleMyVideoToggle();
+                    if (audio) audioResult = await handleMyAudioToggle();
+
+                    if (videoResult && audioResult) {
+                        localStorage.removeItem("initialMediaState");
+                    }else{
+                        toast({
+                            title:"Some error occured",
+                            description:"Error trying to send your media to server",
+                            variant:"destructive"
+                        })
+                    }
+                }
+            };
+
+            fetchInitialMediaState();
+        }
+    }, [isInitialized]);
+
+
     const handleMyAudioToggle = async () => {
-        if (user == null || user == undefined) return;
+        if (user == null || user == undefined) return false;
         const index = participants.findIndex(obj => obj.id === user.id);
-        if (index === -1) return;
+        if (index === -1) return false;
 
         const participant = participants[index];
+        if (!participant) return false
         const isAudioOn = !participant?.audioOn;
 
         if (isAudioOn) {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             const audioTrack = stream.getAudioTracks()[0];
             if (!audioTrack) {
-                return
+                return false
             }
             await ms_handler.current?.produceAudio(audioTrack)
             console.log("Produced audio")
@@ -354,25 +373,28 @@ export default function Component() {
                     : participant
             );
         });
+        return true
     };
 
 
 
     const handleMyVideoToggle = async () => {
-        if (!user) return;
+        if (!user) return false;
 
+        console.log(participants)
         const index = participants.findIndex(obj => obj.id === user.id);
-        if (index === -1) return;
+        if (index === -1) return false;
 
         const participant = participants[index];
-        const isVideoOn = !participant?.videoOn;
+        if (!participant) return false
+        const isVideoOn = !participant.videoOn;
 
         if (isVideoOn) {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true });
                 const videoTrack = stream.getVideoTracks()[0];
                 if (!videoTrack) {
-                    return
+                    return false
                 }
 
                 if (participant?.ref?.current) {
@@ -404,6 +426,7 @@ export default function Component() {
                     : p
             ));
         }
+        return true
     };
 
     const handleParticipantsButtonClick = () => {

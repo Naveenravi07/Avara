@@ -18,8 +18,8 @@ export function VideoControls({
         setCurrentPage: React.Dispatch<React.SetStateAction<number>>,
         participants: Participant[],
         user: User,
-        handleMyAudioToggle: () => void,
-        handleMyVideoToggle: () => Promise<void>,
+        handleMyAudioToggle: () => Promise<boolean>,
+        handleMyVideoToggle: () => Promise<boolean>,
         handleParticipantsButtonClick: () => void,
         hanleSettingsButtonClick: () => void,
         notifications: string[]

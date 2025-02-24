@@ -6,6 +6,7 @@ import { AuthModule } from 'src/auth/auth.module';
 
 @Module({
     imports: [MeetModule, AuthModule],
-    providers: [AdmissionGateway, AdmissionService]
+    providers: [AdmissionGateway, AdmissionService],
+    exports:[AdmissionService]
 })
 export class AdmissionModule { }

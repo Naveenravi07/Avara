@@ -21,6 +21,7 @@ import { type TransportConsumeReq, transportConsumeReqSchema } from './dto/trans
 import { type ResumeConsumeTransportReq, resumeConsumeTransportReqSchema } from './dto/resume-consume-transport-req';
 import { type ConsumeSingleUserReq, consumeSingleUserReqSchema } from './dto/consume-single-user-req';
 import { type CloseProducerReq, closeProducerReqSchema } from './dto/close-producer-req';
+import { AdmissionService } from 'src/admission/admission.service';
 
 
 @UseGuards(WsSessionGuard)
@@ -31,6 +32,7 @@ export class MediasoupGateway implements OnGatewayConnection, OnGatewayDisconnec
     constructor(
         private readonly MediasoupService: MediasoupService,
         private readonly meetService: MeetService,
+        private readonly admissionService: AdmissionService,
     ) { }
 
     async onModuleInit() {
@@ -41,14 +43,13 @@ export class MediasoupGateway implements OnGatewayConnection, OnGatewayDisconnec
         console.log("New conenction req", client.id)
     }
 
-    handleDisconnect(client: CustomSocket) {
+    async handleDisconnect(client: CustomSocket) {
         try {
             console.log("Client disconnected", client.id)
             client.broadcast.emit("userLeft", { name: client.data.userName, id: client.data.userId })
-            let status = this.MediasoupService.leaveRoom(client.data.roomId, client.data.userId)
+            let status = await this.MediasoupService.leaveRoom(client.data.roomId, client.data.userId)
             return status
         } catch (err) {
-
         }
     }
 
@@ -63,6 +64,9 @@ export class MediasoupGateway implements OnGatewayConnection, OnGatewayDisconnec
         let meet = await this.meetService.getDetailsFromId(payload.id)
         if (meet.creator == userId) {
             this.MediasoupService.addUserToOwnerList(client, meet.id)
+        } else {
+            let permission = await this.admissionService.getWaitingUserFromRedis(meet.id, userId);
+            if(permission?.status !== "admitted") return false
         }
 
         client.data.roomId = payload.id

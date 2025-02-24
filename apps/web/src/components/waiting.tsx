@@ -29,10 +29,8 @@ export function WaitingRoomModal({
     const { user } = useAuth();
     const router = useRouter();
     const { toast } = useToast();
-
     let adm_socket = connect_admission_socket({ roomId: roomId });
 
-    // Save state to localStorage whenever isVideoOn or isMicOn changes
     React.useEffect(() => {
         localStorage.setItem('initialMediaState', JSON.stringify({
             video: isVideoOn,
@@ -40,15 +38,14 @@ export function WaitingRoomModal({
         }));
     }, [isVideoOn, isMicOn]);
 
+
     const handleVideoToggle = async () => {
         if (isVideoOn) {
-            // Stop the video stream
             if (videoRef.current && videoRef.current.srcObject) {
                 (videoRef.current.srcObject as MediaStream).getTracks().forEach(track => track.stop());
                 videoRef.current.srcObject = null;
             }
         } else {
-            // Start the video stream with the selected camera
             if (selectedVideoDeviceId) {
                 const constraints = { video: { deviceId: { exact: selectedVideoDeviceId } } };
                 const stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -62,17 +59,14 @@ export function WaitingRoomModal({
 
     const handleMicToggle = async () => {
         if (isMicOn) {
-            // Stop the audio stream
             if (videoRef.current && videoRef.current.srcObject) {
                 (videoRef.current.srcObject as MediaStream).getAudioTracks().forEach(track => track.stop());
             }
         } else {
-            // Start the audio stream with the selected microphone
             if (selectedAudioDeviceId) {
                 const constraints = { audio: { deviceId: { exact: selectedAudioDeviceId } } };
                 const stream = await navigator.mediaDevices.getUserMedia(constraints);
                 if (videoRef.current && videoRef.current.srcObject) {
-                    // Add the audio track to the existing video stream (if any)
                     stream.getAudioTracks().forEach(track => {
                         (videoRef.current!.srcObject as MediaStream).addTrack(track);
                     });
@@ -87,17 +81,29 @@ export function WaitingRoomModal({
         adm_socket.emit('initialize', (status: boolean) => {
             if (status == true) {
                 adm_socket.emit("waitingAdd");
+                navigator.mediaDevices.getUserMedia({ audio: true, video: true }).then(() => {
+                    navigator.mediaDevices.enumerateDevices().then((deviceList) => {
+                        console.log(deviceList);
+                        setVideoDevices(deviceList.filter((d) => d.kind === "videoinput" && d.deviceId != ""));
+                        setAudioDevices(deviceList.filter((d) => d.kind === "audioinput" && d.deviceId != ""));
+                    });
+                });
+
             }
         });
     };
 
     const handleAdmissionApproval = async (data: string) => {
         if (data.toLowerCase() == "ok") {
-            localStorage.setItem('initialMediaState', JSON.stringify({
-                video: isVideoOn,
-                audio: isMicOn
-            }));
-            console.log(localStorage.getItem('initialMediaState'));
+            let str = localStorage.getItem('initialMediaState')
+            if (str) {
+                let data: any = JSON.parse(str)
+                localStorage.setItem('initialMediaState', JSON.stringify({
+                    video: data.video,
+                    audio: data.audio
+                }));
+                console.log("PREPPING TO REDIRECT", localStorage.getItem('initialMediaState'));
+            }
             router.push(`/meet/${roomId}`);
         }
     };
@@ -144,7 +150,6 @@ export function WaitingRoomModal({
             const constraints = { audio: { deviceId: { exact: deviceId } } };
             const stream = await navigator.mediaDevices.getUserMedia(constraints);
             if (videoRef.current && videoRef.current.srcObject) {
-                // Replace the existing audio track with the new one
                 (videoRef.current.srcObject as MediaStream).getAudioTracks().forEach(track => track.stop());
                 stream.getAudioTracks().forEach(track => {
                     (videoRef.current!.srcObject as MediaStream).addTrack(track);
@@ -153,15 +158,6 @@ export function WaitingRoomModal({
         }
     };
 
-    React.useEffect(() => {
-        navigator.mediaDevices.getUserMedia({ audio: true, video: true }).then(() => {
-            navigator.mediaDevices.enumerateDevices().then((deviceList) => {
-                console.log(deviceList);
-                setVideoDevices(deviceList.filter((d) => d.kind === "videoinput" && d.deviceId != ""));
-                setAudioDevices(deviceList.filter((d) => d.kind === "audioinput" && d.deviceId != ""));
-            });
-        });
-    }, []);
 
     React.useEffect(() => {
         if (!user) return;
@@ -185,7 +181,7 @@ export function WaitingRoomModal({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[600px] bg-black border-white/20">
+            <DialogContent className="sm:max-w-[800px] bg-black border-white/20">
                 <DialogHeader>
                     <DialogTitle className="text-white">Waiting to accept admit request</DialogTitle>
                 </DialogHeader>
