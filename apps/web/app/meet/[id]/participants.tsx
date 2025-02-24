@@ -1,8 +1,7 @@
 import { Mic, MicOff, Video, VideoOff } from "lucide-react"
-import { Participant,participantsPerPage } from "../types"
+import { Participant, participantsPerPage } from "../types"
 import { User } from "@/types/user/user";
 import { useState } from "react";
-
 
 
 export function ViewParticipants({ containerRef, participants, user }: { containerRef: React.RefObject<HTMLDivElement>, participants: Participant[], user: User }) {
@@ -69,13 +68,12 @@ export function ViewParticipants({ containerRef, participants, user }: { contain
                 onMouseMove={handleMouseMove}
                 onMouseLeave={handleMouseUp}
             >
-                <div className={`grid ${getGridClass(currentParticipants.length)} gap-4 h-full p-4`}>
+                <div className={`grid ${getGridClass(currentParticipants.length)} gap-4 h-full p-4  ${(currentParticipants.length === 1 && currentParticipants.at(0)?.videoOn) ? "max-w-7xl mx-auto" : ""}`}>
                     {currentParticipants.map((participant, i) => (
                         <div
                             key={participant.id}
                             className="relative bg-gray-200 rounded-lg overflow-hidden shadow-md"
                         >
-                            
                             <video
                                 ref={participant.ref}
                                 onLoadedMetadata={async (e) => {
@@ -84,9 +82,9 @@ export function ViewParticipants({ containerRef, participants, user }: { contain
                                     await e.currentTarget.play()
                                 }}
                                 muted={participant.id === user?.id}
-                                className={`w-full h-full object-cover ${participant.videoOn ? 'block' : 'hidden'}`}
+                                className={`w-full h-full object-fill ${participant.videoOn ? 'block' : 'hidden'}`}
                             />
-                            
+
                             {/* Avatar shown when video is off */}
                             {!participant.videoOn && (
                                 <div className="w-full h-full flex items-center justify-center bg-gray-300">
@@ -98,7 +96,7 @@ export function ViewParticipants({ containerRef, participants, user }: { contain
                                 </div>
                             )}
 
-                         
+
                             <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between bg-white bg-opacity-80 rounded px-2 py-1">
                                 <span className="text-sm font-medium">{participant.name}</span>
                                 <div className="flex space-x-1">

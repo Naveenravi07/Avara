@@ -16,3 +16,4 @@ export const meetRelations = relations(meetTable, ({ one }) => ({
         references: [usersTable.id]
     })
 }))
+

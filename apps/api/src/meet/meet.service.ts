@@ -8,6 +8,7 @@ import { eq } from 'drizzle-orm';
 import { RedisService } from '@liaoliaots/nestjs-redis';
 import { Redis } from 'ioredis';
 import { UsersService } from 'src/users/users.service';
+import { UpdateMeetReq } from './dto/update-meet.dto';
 
 @Injectable()
 export class MeetService {
@@ -39,13 +40,13 @@ export class MeetService {
         let arr = Object.entries(users).map(([k, v]) => {
             type WaitingInfo = { status: string, userName: string, pfp: string | null, }
             let obj: WaitingInfo = JSON.parse(v)
-                return {
-                    userId: k.split("user:").at(1),
-                    status: obj.status,
-                    userName: obj.userName,
-                    pfp: obj.pfp
-                }
-        }).filter((o)=>o.status != "admitted" && o.status != "rejected")
+            return {
+                userId: k.split("user:").at(1),
+                status: obj.status,
+                userName: obj.userName,
+                pfp: obj.pfp
+            }
+        }).filter((o) => o.status != "admitted" && o.status != "rejected")
         return { roomId: roomId, waitingList: arr ?? [] }
     }
 
@@ -61,14 +62,14 @@ export class MeetService {
         let redis_data: admissionInfo = await JSON.parse(currDoc)
 
         redis_data.status = "admitted"
-        await this.RedisService.hset(`admission:${roomId}`,`user:${userId}`,JSON.stringify(redis_data))
+        await this.RedisService.hset(`admission:${roomId}`, `user:${userId}`, JSON.stringify(redis_data))
 
         let data = { userId: user.id, roomId: meet.id }
         let resp = await this.RedisService.publish("admitted-users", JSON.stringify(data))
         return resp
     }
 
-    async rejectUserToMeet(roomId:string,userId:string){
+    async rejectUserToMeet(roomId: string, userId: string) {
         let meet = await this.getDetailsFromId(roomId)
         let user = await this.userService.getUser(userId)
 
@@ -80,10 +81,19 @@ export class MeetService {
         let redis_data: admissionInfo = await JSON.parse(currDoc)
 
         redis_data.status = "rejected"
-        await this.RedisService.hset(`admission:${roomId}`,`user:${userId}`,JSON.stringify(redis_data))
+        await this.RedisService.hset(`admission:${roomId}`, `user:${userId}`, JSON.stringify(redis_data))
 
         let data = { userId: user.id, roomId: meet.id }
         let resp = await this.RedisService.publish("rejected-users", JSON.stringify(data))
         return resp
+    }
+
+    async updateMeet(roomId: string, updates: UpdateMeetReq) {
+        let meet = await this.database
+            .update(schema.meetTable)
+            .set(updates)
+            .where(eq(schema.meetTable.id, roomId))
+            .returning()
+        return meet
     }
 }

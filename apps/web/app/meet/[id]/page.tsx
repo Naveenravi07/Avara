@@ -351,7 +351,7 @@ export default function Component() {
         if (isAudioOn) {
             setIsAudioLoading(true);
             try {
-                const constraints = deviceId 
+                const constraints = deviceId
                     ? { audio: { deviceId: { exact: deviceId } } }
                     : { audio: true };
                 const stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -403,7 +403,7 @@ export default function Component() {
         if (isVideoOn) {
             setIsVideoLoading(true);
             try {
-                const constraints = deviceId 
+                const constraints = deviceId
                     ? { video: { deviceId: { exact: deviceId } } }
                     : { video: true };
                 const stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -462,9 +462,11 @@ export default function Component() {
             <ViewParticipants containerRef={containerRef} user={user!} participants={participants} />
             {
                 id &&
-                <UserManagementModal roomId={Array.isArray(id) ? id[0]! : id} users={participants} socket={socket} open={P_Popup} onOpenChange={setP_Popup} />
+                <>
+                    <UserManagementModal roomId={Array.isArray(id) ? id[0]! : id} users={participants} socket={socket} open={P_Popup} onOpenChange={setP_Popup} />
+                    <SettingsModal meetId={Array.isArray(id) ? id[0]! : id} open={S_Popup} onOpenChange={setS_Popup} />
+                </>
             }
-            <SettingsModal open={S_Popup} onOpenChange={setS_Popup} />
             <VideoControls
                 user={user!}
                 participants={participants}

@@ -68,9 +68,11 @@ export class MediasoupGateway implements OnGatewayConnection, OnGatewayDisconnec
         if (meet.creator == userId) {
             this.MediasoupService.addUserToOwnerList(client, meet.id)
         } else {
-            let permission = await this.admissionService.getWaitingUserFromRedis(meet.id, userId);
-            client.data.silentDisconnect = true
-            if (permission?.status !== "admitted") return false
+            if (meet.inviteOnly == true) {
+                let permission = await this.admissionService.getWaitingUserFromRedis(meet.id, userId);
+                client.data.silentDisconnect = true
+                if (permission?.status !== "admitted") return false
+            }
         }
         client.data.roomId = payload.id
         client.data.silentDisconnect = false
