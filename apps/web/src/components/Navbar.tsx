@@ -27,7 +27,7 @@ export default function Navbar() {
         <nav className="flex items-center justify-between p-4 bg-background">
             <div className="text-2xl font-bold">
                 <a href="/" className="text-primary hover:text-primary/80">
-                    <Image alt='AVARA LOGO' src={logo} height={40} width={100} />
+                    <Image alt='AVARA LOGO' src={logo} height={20} width={100} />
                 </a>
             </div>
 

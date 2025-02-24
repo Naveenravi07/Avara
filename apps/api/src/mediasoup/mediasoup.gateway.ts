@@ -22,6 +22,7 @@ import { type ResumeConsumeTransportReq, resumeConsumeTransportReqSchema } from 
 import { type ConsumeSingleUserReq, consumeSingleUserReqSchema } from './dto/consume-single-user-req';
 import { type CloseProducerReq, closeProducerReqSchema } from './dto/close-producer-req';
 import { AdmissionService } from 'src/admission/admission.service';
+import { clear } from 'console';
 
 
 @UseGuards(WsSessionGuard)
@@ -46,8 +47,10 @@ export class MediasoupGateway implements OnGatewayConnection, OnGatewayDisconnec
     async handleDisconnect(client: CustomSocket) {
         try {
             console.log("Client disconnected", client.id)
-            client.broadcast.emit("userLeft", { name: client.data.userName, id: client.data.userId })
             let status = await this.MediasoupService.leaveRoom(client.data.roomId, client.data.userId)
+            if (client.data.silentDisconnect == false) {
+                client.broadcast.emit("userLeft", { name: client.data.userName, id: client.data.userId })
+            }
             return status
         } catch (err) {
         }
@@ -66,10 +69,11 @@ export class MediasoupGateway implements OnGatewayConnection, OnGatewayDisconnec
             this.MediasoupService.addUserToOwnerList(client, meet.id)
         } else {
             let permission = await this.admissionService.getWaitingUserFromRedis(meet.id, userId);
-            if(permission?.status !== "admitted") return false
+            client.data.silentDisconnect = true
+            if (permission?.status !== "admitted") return false
         }
-
         client.data.roomId = payload.id
+        client.data.silentDisconnect = false
         await this.MediasoupService.addNewRoom(meet.id)
         await client.join(payload.id)
 

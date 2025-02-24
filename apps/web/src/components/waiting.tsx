@@ -34,9 +34,11 @@ export function WaitingRoomModal({
     React.useEffect(() => {
         localStorage.setItem('initialMediaState', JSON.stringify({
             video: isVideoOn,
-            audio: isMicOn
+            audio: isMicOn,
+            videoDeviceId: selectedVideoDeviceId,
+            audioDeviceId: selectedAudioDeviceId
         }));
-    }, [isVideoOn, isMicOn]);
+    }, [isVideoOn, isMicOn, selectedVideoDeviceId, selectedAudioDeviceId]);
 
 
     const handleVideoToggle = async () => {

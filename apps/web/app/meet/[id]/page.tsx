@@ -28,6 +28,8 @@ export default function Component() {
     const { toast } = useToast()
     const [notifications, setNotifications] = useState<string[]>([]);
     const [isInitialized, setIsInitialized] = useState(false);
+    const [isVideoLoading, setIsVideoLoading] = useState(false);
+    const [isAudioLoading, setIsAudioLoading] = useState(false);
 
     const getAllConnectedUserInformation = async () => {
         socket.emit('getAllUsersInRoom', null, (response: any) => {
@@ -226,10 +228,7 @@ export default function Component() {
         socket.emit('initialize', { id: id },
             (status: boolean) => {
                 if (status == false) {
-                    toast({
-                        title: "Not authorized",
-                    })
-                    router.push("/")
+                    router.push(`/?wait=true&roomId=${id}`)
                 } else {
                     socket.emit('getRTPCapabilities', null);
                     setIsInitialized(true); // Set initialization state to true
@@ -313,37 +312,34 @@ export default function Component() {
 
     useEffect(() => {
         if (isInitialized) {
+
             const fetchInitialMediaState = async () => {
-                console.log("GETTING initialMediaState");
                 const initialMediaState = localStorage.getItem("initialMediaState");
-                console.log(initialMediaState);
                 if (initialMediaState) {
-                    const { video, audio } = JSON.parse(initialMediaState);
-                    console.log("SETTING VIDEO AND AUDIO ", video, audio);
+                    const { video, audio, videoDeviceId, audioDeviceId } = JSON.parse(initialMediaState);
 
                     let videoResult = true, audioResult = true;
 
-                    if (video) videoResult = await handleMyVideoToggle();
-                    if (audio) audioResult = await handleMyAudioToggle();
+                    if (video) videoResult = await handleMyVideoToggle(videoDeviceId);
+                    if (audio) audioResult = await handleMyAudioToggle(audioDeviceId);
 
                     if (videoResult && audioResult) {
                         localStorage.removeItem("initialMediaState");
-                    }else{
+                    } else {
                         toast({
-                            title:"Some error occured",
-                            description:"Error trying to send your media to server",
-                            variant:"destructive"
+                            title: "Some error occurred",
+                            description: "Error trying to send your media to server",
+                            variant: "destructive"
                         })
                     }
                 }
             };
-
             fetchInitialMediaState();
         }
     }, [isInitialized]);
 
 
-    const handleMyAudioToggle = async () => {
+    const handleMyAudioToggle = async (deviceId?: string) => {
         if (user == null || user == undefined) return false;
         const index = participants.findIndex(obj => obj.id === user.id);
         if (index === -1) return false;
@@ -353,20 +349,35 @@ export default function Component() {
         const isAudioOn = !participant?.audioOn;
 
         if (isAudioOn) {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const audioTrack = stream.getAudioTracks()[0];
-            if (!audioTrack) {
-                return false
+            setIsAudioLoading(true);
+            try {
+                const constraints = deviceId 
+                    ? { audio: { deviceId: { exact: deviceId } } }
+                    : { audio: true };
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                const audioTrack = stream.getAudioTracks()[0];
+                if (!audioTrack) {
+                    return false
+                }
+                await ms_handler.current?.produceAudio(audioTrack)
+                console.log("Produced audio")
+            } catch (error) {
+                console.error("Error accessing microphone:", error);
+                toast({
+                    title: "Microphone Error",
+                    description: "Failed to access microphone",
+                    variant: "destructive"
+                });
+                return false;
+            } finally {
+                setIsAudioLoading(false);
             }
-            await ms_handler.current?.produceAudio(audioTrack)
-            console.log("Produced audio")
         } else {
             await ms_handler.current?.StopProucingAudio()
         }
 
         setParticipants(prev => {
             const index = prev.findIndex(obj => obj.id === user.id);
-
             return prev.map((participant, i) =>
                 i === index
                     ? { ...participant, audioOn: !participant.audioOn }
@@ -378,7 +389,7 @@ export default function Component() {
 
 
 
-    const handleMyVideoToggle = async () => {
+    const handleMyVideoToggle = async (deviceId?: string) => {
         if (!user) return false;
 
         console.log(participants)
@@ -390,8 +401,12 @@ export default function Component() {
         const isVideoOn = !participant.videoOn;
 
         if (isVideoOn) {
+            setIsVideoLoading(true);
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                const constraints = deviceId 
+                    ? { video: { deviceId: { exact: deviceId } } }
+                    : { video: true };
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
                 const videoTrack = stream.getVideoTracks()[0];
                 if (!videoTrack) {
                     return false
@@ -410,6 +425,14 @@ export default function Component() {
                 await ms_handler.current?.produceVideo(videoTrack)
             } catch (error) {
                 console.error("Error accessing camera:", error);
+                toast({
+                    title: "Camera Error",
+                    description: "Failed to access camera",
+                    variant: "destructive"
+                });
+                return false;
+            } finally {
+                setIsVideoLoading(false);
             }
         } else {
 
@@ -451,6 +474,8 @@ export default function Component() {
                 handleParticipantsButtonClick={handleParticipantsButtonClick}
                 hanleSettingsButtonClick={() => { setS_Popup(true) }}
                 notifications={notifications}
+                isVideoLoading={isVideoLoading}
+                isAudioLoading={isAudioLoading}
             />
         </div>
     );

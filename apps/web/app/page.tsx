@@ -9,11 +9,11 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Video, ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import landingImg from "../public/landing.png"
 import Image from "next/image"
 import useAuth from "@/hooks/useAuth"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { WaitingRoomModal } from "@/components/waiting"
 
 export default function LandingPage() {
@@ -22,7 +22,20 @@ export default function LandingPage() {
     const router = useRouter()
     const [url, setUrl] = useState<string>("")
     const [waitModal, setWaitModal] = useState(false)
+    const params = useSearchParams()
 
+    useEffect(() => {
+        let shouldWait = params.get('wait')
+        if (shouldWait == "true") {
+            if (user == undefined || user == null) {
+                return router.push("/auth/login")
+            }
+            let roomId = params.get('roomId')
+            if (!roomId) return
+            setUrl(roomId)
+            setWaitModal(true)
+        }
+    }, [])
 
     const handleMeetCreation = async () => {
         if (user == undefined || user == null) {
@@ -53,7 +66,6 @@ export default function LandingPage() {
         }
 
     }
-
 
     const handleMeetJoin = () => {
         setWaitModal(true)
