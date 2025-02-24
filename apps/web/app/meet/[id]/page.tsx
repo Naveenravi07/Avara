@@ -464,21 +464,35 @@ export default function Component() {
                 id &&
                 <>
                     <UserManagementModal roomId={Array.isArray(id) ? id[0]! : id} users={participants} socket={socket} open={P_Popup} onOpenChange={setP_Popup} />
-                    <SettingsModal meetId={Array.isArray(id) ? id[0]! : id} open={S_Popup} onOpenChange={setS_Popup} />
+                    <SettingsModal
+                        meetId={Array.isArray(id) ? id[0]! : id}
+                        open={S_Popup}
+                        onOpenChange={setS_Popup}
+                        onDeviceChange={async (type, deviceId) => {
+                            if (type === 'audio') {
+                                return handleMyAudioToggle(deviceId);
+                            } else {
+                                return handleMyVideoToggle(deviceId);
+                            }
+                        }}
+                    />
+
+                    <VideoControls
+                        user={user!}
+                        participants={participants}
+                        setCurrentPage={setCurrentPage}
+                        handleMyAudioToggle={handleMyAudioToggle}
+                        handleMyVideoToggle={handleMyVideoToggle}
+                        handleParticipantsButtonClick={handleParticipantsButtonClick}
+                        hanleSettingsButtonClick={() => { setS_Popup(true) }}
+                        notifications={notifications}
+                        isVideoLoading={isVideoLoading}
+                        isAudioLoading={isAudioLoading}
+                        meetingId={Array.isArray(id) ? id[0]! : id}
+                    />
                 </>
             }
-            <VideoControls
-                user={user!}
-                participants={participants}
-                setCurrentPage={setCurrentPage}
-                handleMyAudioToggle={handleMyAudioToggle}
-                handleMyVideoToggle={handleMyVideoToggle}
-                handleParticipantsButtonClick={handleParticipantsButtonClick}
-                hanleSettingsButtonClick={() => { setS_Popup(true) }}
-                notifications={notifications}
-                isVideoLoading={isVideoLoading}
-                isAudioLoading={isAudioLoading}
-            />
+
         </div>
     );
 }

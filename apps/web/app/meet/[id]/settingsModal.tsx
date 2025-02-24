@@ -9,14 +9,20 @@ import { toast } from "@/hooks/use-toast"
 export default function SettingsModal({
     open = false,
     onOpenChange,
-    meetId
+    meetId,
+    onDeviceChange
 }: {
     open: boolean,
     onOpenChange: (open: boolean) => void,
-    meetId: string
+    meetId: string,
+    onDeviceChange: (type: 'audio' | 'video', deviceId: string) => Promise<boolean>
 }) {
     const [meetDetails, setMeetDetails] = useState<any>(null)
     const [isUpdating, setIsUpdating] = useState(false)
+    const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([])
+    const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([])
+    const [selectedAudioDevice, setSelectedAudioDevice] = useState<string>('')
+    const [selectedVideoDevice, setSelectedVideoDevice] = useState<string>('')
 
     const fetchMeetDetails = async () => {
         try {
@@ -33,6 +39,52 @@ export default function SettingsModal({
                 title: "Failed to fetch meet details",
                 variant: "destructive"
             })
+        }
+    }
+
+    const getMediaDevices = async () => {
+        try {
+            const devices = await navigator.mediaDevices.enumerateDevices()
+            setAudioDevices(devices.filter(device => device.kind === 'audioinput'))
+            setVideoDevices(devices.filter(device => device.kind === 'videoinput'))
+            
+            const storedState = localStorage.getItem('initialMediaState')
+            if (storedState) {
+                const { audioDeviceId, videoDeviceId } = JSON.parse(storedState)
+                setSelectedAudioDevice(audioDeviceId || '')
+                setSelectedVideoDevice(videoDeviceId || '')
+            }
+        } catch (error) {
+            toast({
+                title: "Failed to get media devices",
+                variant: "destructive"
+            })
+        }
+    }
+
+    const handleAudioDeviceChange = async (deviceId: string) => {
+        const success = await onDeviceChange('audio', deviceId)
+        if (success) {
+            setSelectedAudioDevice(deviceId)
+            const storedState = localStorage.getItem('initialMediaState')
+            const newState = storedState ? JSON.parse(storedState) : {}
+            localStorage.setItem('initialMediaState', JSON.stringify({
+                ...newState,
+                audioDeviceId: deviceId
+            }))
+        }
+    }
+
+    const handleVideoDeviceChange = async (deviceId: string) => {
+        const success = await onDeviceChange('video', deviceId)
+        if (success) {
+            setSelectedVideoDevice(deviceId)
+            const storedState = localStorage.getItem('initialMediaState')
+            const newState = storedState ? JSON.parse(storedState) : {}
+            localStorage.setItem('initialMediaState', JSON.stringify({
+                ...newState,
+                videoDeviceId: deviceId
+            }))
         }
     }
 
@@ -64,6 +116,7 @@ export default function SettingsModal({
     useEffect(() => {
         if (open) {
             fetchMeetDetails()
+            getMediaDevices()
         }
     }, [open, meetId])
 
@@ -94,29 +147,20 @@ export default function SettingsModal({
                         <Label htmlFor="microphone" className="text-white">
                             Microphone Input
                         </Label>
-                        <Select>
+                        <Select value={selectedAudioDevice} onValueChange={handleAudioDeviceChange}>
                             <SelectTrigger id="microphone" className="border-zinc-800 bg-black text-white">
                                 <SelectValue placeholder="Select microphone" />
                             </SelectTrigger>
                             <SelectContent className="bg-zinc-900 border-zinc-800">
-                                <SelectItem
-                                    value="default"
-                                    className="text-white focus:bg-zinc-800 focus:text-white hover:bg-zinc-800 hover:text-white"
-                                >
-                                    Default Microphone
-                                </SelectItem>
-                                <SelectItem
-                                    value="built-in"
-                                    className="text-white focus:bg-zinc-800 focus:text-white hover:bg-zinc-800 hover:text-white"
-                                >
-                                    Built-in Microphone
-                                </SelectItem>
-                                <SelectItem
-                                    value="external"
-                                    className="text-white focus:bg-zinc-800 focus:text-white hover:bg-zinc-800 hover:text-white"
-                                >
-                                    External Microphone
-                                </SelectItem>
+                                {audioDevices.map(device => (
+                                    <SelectItem
+                                        key={device.deviceId}
+                                        value={device.deviceId || 'default'}
+                                        className="text-white focus:bg-zinc-800 focus:text-white hover:bg-zinc-800 hover:text-white"
+                                    >
+                                        {device.label || `Microphone ${device.deviceId.slice(0, 5)}`}
+                                    </SelectItem>
+                                ))}
                             </SelectContent>
                         </Select>
                     </div>
@@ -125,29 +169,20 @@ export default function SettingsModal({
                         <Label htmlFor="camera" className="text-white">
                             Camera Input
                         </Label>
-                        <Select>
+                        <Select value={selectedVideoDevice} onValueChange={handleVideoDeviceChange}>
                             <SelectTrigger id="camera" className="border-zinc-800 bg-black text-white">
                                 <SelectValue placeholder="Select camera" />
                             </SelectTrigger>
                             <SelectContent className="bg-zinc-900 border-zinc-800">
-                                <SelectItem
-                                    value="default"
-                                    className="text-white focus:bg-zinc-800 focus:text-white hover:bg-zinc-800 hover:text-white"
-                                >
-                                    Default Camera
-                                </SelectItem>
-                                <SelectItem
-                                    value="built-in"
-                                    className="text-white focus:bg-zinc-800 focus:text-white hover:bg-zinc-800 hover:text-white"
-                                >
-                                    Built-in Camera
-                                </SelectItem>
-                                <SelectItem
-                                    value="external"
-                                    className="text-white focus:bg-zinc-800 focus:text-white hover:bg-zinc-800 hover:text-white"
-                                >
-                                    External Camera
-                                </SelectItem>
+                                {videoDevices.map(device => (
+                                    <SelectItem
+                                        key={device.deviceId}
+                                        value={device.deviceId || 'default'}
+                                        className="text-white focus:bg-zinc-800 focus:text-white hover:bg-zinc-800 hover:text-white"
+                                    >
+                                        {device.label || `Camera ${device.deviceId.slice(0, 5)}`}
+                                    </SelectItem>
+                                ))}
                             </SelectContent>
                         </Select>
                     </div>

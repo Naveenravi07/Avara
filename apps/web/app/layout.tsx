@@ -5,6 +5,7 @@ import React from 'react';
 import { Providers } from '@/query/Provider';
 import Navbar from '@/components/Navbar';
 import { Toaster } from '@/components/ui/toaster';
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 const geistSans = localFont({
     src: './fonts/GeistVF.woff',
@@ -26,14 +27,16 @@ export default function RootLayout({
     children: React.ReactNode;
 }>) {
     return (
-        <html lang="en">
-            <Providers>
-                <body className={`${geistSans.variable} ${geistMono.variable}`}>
-                    <Navbar />
-                    {children}
-                    <Toaster />
-                </body>
-            </Providers>
-        </html>
+        <TooltipProvider>
+            <html lang="en">
+                <Providers>
+                    <body className={`${geistSans.variable} ${geistMono.variable}`}>
+                        <Navbar />
+                        {children}
+                        <Toaster />
+                    </body>
+                </Providers>
+            </html>
+        </TooltipProvider>
     );
 }
