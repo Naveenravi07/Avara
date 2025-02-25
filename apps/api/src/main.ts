@@ -24,6 +24,7 @@ async function bootstrap() {
             'http://127.0.0.1:5000',
             'http://0.0.0.0:5000',
             'http://192.168.0.110:5000',
+            "https://avara-web.vercel.app"
         ],
         credentials: true,
         methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
