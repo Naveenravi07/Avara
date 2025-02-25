@@ -20,14 +20,12 @@ import { RedisModule } from '@liaoliaots/nestjs-redis';
         RedisModule.forRoot({
             config: [
                 {
+                    url:process.env.REDIS_URL,
                     namespace: 'publisher',
-                    host: 'localhost',
-                    port: 6379,
                 },
                 {
                     namespace: 'subscriber',
-                    host: 'localhost',
-                    port: 6379,
+                    url:process.env.REDIS_URL,
                 }
             ]
 
