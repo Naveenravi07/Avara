@@ -21,13 +21,20 @@ import { CurrentUser } from 'comon/decorators/current-user-decorator';
 import type { SessionUser } from 'src/users/dto/session-user';
 import type { Response as ExpressResponse } from 'express';
 import { Session as ExpressSession } from 'express-session';
+import { ConfigService } from '@nestjs/config';
+
 
 @Controller('auth')
 export class AuthController {
+
+    public clientUrl:string
     constructor(
         private readonly authService: AuthService,
         private readonly userService: UsersService,
-    ) { }
+        private readonly configService: ConfigService
+    ) { 
+        this.clientUrl = configService.getOrThrow("CLIENT_URL")
+    }
 
     @UseGuards(LocalAuthGuard)
     @Post('/local/login')
@@ -56,9 +63,10 @@ export class AuthController {
 
     @Get('/github/cb')
     @UseGuards(GithubAuthGuard)
-    @Redirect('http://localhost:5000')
+    @Redirect()
     async github_cb(@Response() res: ExpressResponse, @CurrentUser() user: SessionUser) {
         res.cookie('x-auth-cookie', user?.id);
+        return {url:this.clientUrl}
     }
 
     @Get('/me')
