@@ -47,9 +47,10 @@ async function bootstrap() {
             saveUninitialized: false,
             name: 'coolSession',
             cookie: {
-                secure: process.env.NODE_ENV === 'production',
-                httpOnly: true,
-                sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+                secure: true,
+                //httpOnly: true,
+                httpOnly: false,
+                sameSite: 'none',
                 maxAge: 24 * 60 * 60 * 1000,
             },
         }),
