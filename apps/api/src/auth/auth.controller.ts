@@ -20,7 +20,7 @@ import { GithubAuthGuard } from './github-auth.gurad';
 import { UsersService } from 'src/users/users.service';
 import { CurrentUser } from 'comon/decorators/current-user-decorator';
 import type { SessionUser } from 'src/users/dto/session-user';
-import type { Response as ExpressResponse, Request } from 'express';
+import type { Response as ExpressResponse } from 'express';
 import { Session as ExpressSession } from 'express-session';
 import { ConfigService } from '@nestjs/config';
 
