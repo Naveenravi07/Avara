@@ -42,7 +42,7 @@ export class AuthController {
         @Response() res: ExpressResponse,
         @CurrentUser() user: SessionUser,
     ) {
-        res.cookie('x-auth-cookie', user?.id);
+        res.cookie('x-auth-cookie', user?.id,{sameSite:'none',secure:true});
         res.status(200).send('Success');
     }
 
