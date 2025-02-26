@@ -16,7 +16,6 @@ async function bootstrap() {
 
 
     app.useGlobalFilters(new AllExceptionsFilter());
-    //app.useGlobalFilters(new DrizzleExceptionFilter())
 
     app.enableCors({
         origin: [
@@ -48,7 +47,6 @@ async function bootstrap() {
             name: 'coolSession',
             cookie: {
                 secure: true,
-                //httpOnly: true,
                 httpOnly: false,
                 sameSite: 'none',
                 maxAge: 24 * 60 * 60 * 1000,

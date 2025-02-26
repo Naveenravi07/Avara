@@ -42,7 +42,11 @@ export class AuthController {
         @Response() res: ExpressResponse,
         @CurrentUser() user: SessionUser,
     ) {
-        res.cookie('x-auth-cookie', user?.id,{sameSite:'none',secure:true});
+        res.cookie('x-auth-cookie', user?.id, {
+            secure: true,
+            httpOnly: false,
+            sameSite: 'none',
+        });
         res.status(200).send('Success');
     }
 
@@ -65,7 +69,11 @@ export class AuthController {
     @UseGuards(GithubAuthGuard)
     @Redirect()
     async github_cb(@Response() res: ExpressResponse, @CurrentUser() user: SessionUser) {
-        res.cookie('x-auth-cookie', user?.id,{sameSite:'none',secure:true});
+        res.cookie('x-auth-cookie', user?.id, {
+            secure: true,
+            httpOnly: false,
+            sameSite: 'none',
+        });
         return { url: this.clientUrl }
     }
 
