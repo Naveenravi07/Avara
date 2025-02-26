@@ -8,6 +8,7 @@ import {
     UsePipes,
     Response,
     Session,
+    Request,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LocalAuthGuard } from './local-auth.gurad';
@@ -19,7 +20,7 @@ import { GithubAuthGuard } from './github-auth.gurad';
 import { UsersService } from 'src/users/users.service';
 import { CurrentUser } from 'comon/decorators/current-user-decorator';
 import type { SessionUser } from 'src/users/dto/session-user';
-import type { Response as ExpressResponse } from 'express';
+import type { Response as ExpressResponse, Request } from 'express';
 import { Session as ExpressSession } from 'express-session';
 import { ConfigService } from '@nestjs/config';
 
@@ -41,7 +42,11 @@ export class AuthController {
     async local_login(
         @Response() res: ExpressResponse,
         @CurrentUser() user: SessionUser,
+        @Session() sess: ExpressSession
     ) {
+        sess.save((err) => {
+            console.log("[INFO] SESSION SAVED, ERR = ", err)
+        })
         res.cookie('x-auth-cookie', user?.id, {
             secure: true,
             httpOnly: false,
@@ -68,7 +73,10 @@ export class AuthController {
     @Get('/github/cb')
     @UseGuards(GithubAuthGuard)
     @Redirect()
-    async github_cb(@Response() res: ExpressResponse, @CurrentUser() user: SessionUser) {
+    async github_cb(@Response() res: ExpressResponse, @CurrentUser() user: SessionUser, @Session() sess: ExpressSession) {
+        sess.save((err) => {
+            console.log("[INFO] SESSION SAVED, ERR = ", err)
+        })
         res.cookie('x-auth-cookie', user?.id, {
             secure: true,
             httpOnly: false,
@@ -79,9 +87,9 @@ export class AuthController {
 
     @Get('/me')
     async get_user_data(@CurrentUser() user: SessionUser, @Response() res: ExpressResponse, @Session() ses: ExpressSession) {
-        console.log("GOT ME REQ")
-        console.log(ses.id)
+        console.log("[INFO ]GOT ME REQ, Session Id  = ", ses.id)
         console.log(ses)
+
         if (user == null) {
             res.clearCookie('x-auth-cookie');
             return res.status(400).json({

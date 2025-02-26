@@ -37,6 +37,7 @@ async function bootstrap() {
     })
 
 
+    app.use("trust proxy", 1);
     app.use(cookieParser());
     app.use(
         session({
