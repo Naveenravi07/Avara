@@ -27,12 +27,12 @@ import { ConfigService } from '@nestjs/config';
 @Controller('auth')
 export class AuthController {
 
-    public clientUrl:string
+    public clientUrl: string
     constructor(
         private readonly authService: AuthService,
         private readonly userService: UsersService,
         private readonly configService: ConfigService
-    ) { 
+    ) {
         this.clientUrl = configService.getOrThrow("CLIENT_URL")
     }
 
@@ -65,8 +65,8 @@ export class AuthController {
     @UseGuards(GithubAuthGuard)
     @Redirect()
     async github_cb(@Response() res: ExpressResponse, @CurrentUser() user: SessionUser) {
-        res.cookie('x-auth-cookie', user?.id);
-        return {url:this.clientUrl}
+        res.cookie('x-auth-cookie', user?.id,{sameSite:'none',secure:true});
+        return { url: this.clientUrl }
     }
 
     @Get('/me')
