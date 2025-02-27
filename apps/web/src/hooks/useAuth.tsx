@@ -39,7 +39,6 @@ const useAuth = () => {
   const query = useQuery({
     queryKey: ['user'],
     queryFn: getUserData,
-    enabled: Boolean(Cookie.get('x-auth-cookie')),
     retry: false,
   });
   const { data, error, isLoading, isError, isFetching } = query;
