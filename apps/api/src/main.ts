@@ -2,7 +2,6 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from 'comon/filters/execption-filter';
 import session from 'express-session';
-import proxy from "express-http-proxy"
 import passport from 'passport';
 import { ConfigService } from '@nestjs/config';
 import cookieParser from 'cookie-parser';
@@ -57,8 +56,6 @@ async function bootstrap() {
 
     app.use(passport.initialize());
     app.use(passport.session());
-    let clientUri = configService.getOrThrow("CLIENT_URL")
-    app.use(proxy(clientUri))
     await app.listen(process.env.PORT ?? 3000);
 }
 bootstrap();

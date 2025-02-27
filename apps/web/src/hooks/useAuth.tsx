@@ -5,6 +5,7 @@ import { User } from './../types/user/user';
 
 const getUserData = async () => {
   console.log('Cookie = ' + Cookie.get('x-auth-cookie'));
+  console.log('Cookie = ' + Cookie.get('coolSession'));
   const response = await fetch(`${process.env.NEXT_PUBLIC_SERVER_URL}/auth/me`, {
     method: 'GET',
     credentials: 'include',
