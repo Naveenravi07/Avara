@@ -46,7 +46,7 @@ async function bootstrap() {
             saveUninitialized: false,
             name: 'coolSession',
             cookie: {
-                secure: true,
+                secure: false,
                 httpOnly: false,
                 sameSite: 'none',
                 maxAge: 24 * 60 * 60 * 1000,
