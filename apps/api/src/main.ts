@@ -7,16 +7,19 @@ import { ConfigService } from '@nestjs/config';
 import cookieParser from 'cookie-parser';
 import { RedisService } from '@liaoliaots/nestjs-redis';
 import { RedisStore } from 'connect-redis';
+import { INestApplication } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
 
 
 async function bootstrap() {
-    const app = await NestFactory.create(AppModule);
+    const app = await NestFactory.create<NestExpressApplication>(AppModule);
     const configService = app.get(ConfigService);
     const redisService = app.get(RedisService); // Inject RedisService
 
 
     app.useGlobalFilters(new AllExceptionsFilter());
 
+    app.set('trust proxy',1)
     app.enableCors({
         origin: [
             'http://localhost:5000',
@@ -46,7 +49,7 @@ async function bootstrap() {
             saveUninitialized: false,
             name: 'coolSession',
             cookie: {
-                secure: false,
+                secure: true,
                 httpOnly: false,
                 sameSite: 'none',
                 maxAge: 24 * 60 * 60 * 1000,

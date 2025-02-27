@@ -48,7 +48,7 @@ export class AuthController {
             console.log("[INFO] SESSION SAVED, ERR = ", err)
         })
         res.cookie('x-auth-cookie', user?.id, {
-            secure: false,
+            secure: true,
             httpOnly: false,
             sameSite: 'none',
         });
@@ -78,7 +78,7 @@ export class AuthController {
             console.log("[INFO] SESSION SAVED, ERR = ", err)
         })
         res.cookie('x-auth-cookie', user?.id, {
-            secure: false,
+            secure: true,
             httpOnly: false,
             sameSite: 'none',
         });
