@@ -87,9 +87,6 @@ export class AuthController {
 
     @Get('/me')
     async get_user_data(@CurrentUser() user: SessionUser, @Response() res: ExpressResponse, @Session() ses: ExpressSession) {
-        console.log("[INFO ]GOT ME REQ, Session Id  = ", ses.id)
-        console.log(ses)
-
         if (user == null) {
             res.clearCookie('x-auth-cookie');
             return res.status(400).json({
