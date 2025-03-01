@@ -34,6 +34,7 @@ export default function LoginPage() {
         }),
       });
       if (response.ok) {
+        router.refresh()
         router.push('/');
       } else {
         let json = await response.json();
