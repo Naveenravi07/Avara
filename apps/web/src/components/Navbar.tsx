@@ -1,5 +1,5 @@
 'use client';
-
+import { useState, useEffect } from 'react';
 import useAuth from '@/hooks/useAuth';
 import {
     DropdownMenu,
@@ -14,9 +14,19 @@ import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { LogOut, Settings, User } from 'lucide-react';
 import logo from "../../public/logo2.png"
 import Image from 'next/image';
+import { Skeleton } from './ui/skeleton';
 
 export default function Navbar() {
     const { user, logout, invalidate, isError } = useAuth();
+    const [isLoading, setIsLoading] = useState(true);
+    
+    useEffect(() => {
+        // Set loading to false once we have determined the auth state
+        // This assumes useAuth hook eventually resolves to a state
+        if (user !== undefined || isError) {
+            setIsLoading(false);
+        }
+    }, [user, isError]);
 
     const handleLogout = async () => {
         await logout();
@@ -30,8 +40,14 @@ export default function Navbar() {
                     <Image alt='AVARA LOGO' src={logo} height={20} width={100} />
                 </a>
             </div>
-
-            {user && !isError ? (
+            {isLoading ? (
+                // Loading state
+                <div className="flex items-center gap-2">
+                    <Skeleton className="h-8 w-24 rounded" />
+                    <Skeleton className="h-8 w-8 rounded-full" />
+                </div>
+            ) : user && !isError ? (
+                // Authenticated state
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
@@ -68,6 +84,7 @@ export default function Navbar() {
                     </DropdownMenuContent>
                 </DropdownMenu>
             ) : (
+                // Unauthenticated state
                 <div className="flex gap-2">
                     <Button variant="ghost" asChild>
                         <a href="/auth/login">Login</a>
@@ -80,3 +97,4 @@ export default function Navbar() {
         </nav>
     );
 }
+
