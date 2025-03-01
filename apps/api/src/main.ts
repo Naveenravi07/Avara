@@ -7,26 +7,23 @@ import { ConfigService } from '@nestjs/config';
 import cookieParser from 'cookie-parser';
 import { RedisService } from '@liaoliaots/nestjs-redis';
 import { RedisStore } from 'connect-redis';
-import { INestApplication } from '@nestjs/common';
-import { NestExpressApplication } from '@nestjs/platform-express';
 
 
 async function bootstrap() {
-    const app = await NestFactory.create<NestExpressApplication>(AppModule);
+    const app = await NestFactory.create(AppModule);
     const configService = app.get(ConfigService);
     const redisService = app.get(RedisService); // Inject RedisService
 
 
     app.useGlobalFilters(new AllExceptionsFilter());
+    //app.useGlobalFilters(new DrizzleExceptionFilter())
 
-    app.set('trust proxy',1)
     app.enableCors({
         origin: [
             'http://localhost:5000',
             'http://127.0.0.1:5000',
             'http://0.0.0.0:5000',
             'http://192.168.0.110:5000',
-            "https://avara-web.vercel.app"
         ],
         credentials: true,
         methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
@@ -49,12 +46,11 @@ async function bootstrap() {
             saveUninitialized: false,
             name: 'coolSession',
             cookie: {
-                secure: true,
-                httpOnly: false,
-                sameSite: 'none',
+                secure: process.env.NODE_ENV === 'production',
+                httpOnly: true,
+                sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
                 maxAge: 24 * 60 * 60 * 1000,
             },
-            unset:'keep'
         }),
     );
 

@@ -12,12 +12,10 @@ export class GithubStratergy extends PassportStrategy(Strategy) {
     private readonly authService: AuthService,
     private readonly userService: UsersService,
   ) {
-    let cbUrl = configService.getOrThrow("SERVER_URL")+"/auth/github/cb"
-
     super({
       clientID: configService.getOrThrow('GITHUB_CLIENT_ID'),
       clientSecret: configService.getOrThrow('GITHUB_CLIENT_SECRET'),
-      callBackUrl: cbUrl,
+      callBackUrl: 'http://localhost:3000/auth/github/cb',
       scope: ['user:email'],
     });
   }

@@ -8,7 +8,6 @@ import {
     UsePipes,
     Response,
     Session,
-    Request,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LocalAuthGuard } from './local-auth.gurad';
@@ -22,36 +21,21 @@ import { CurrentUser } from 'comon/decorators/current-user-decorator';
 import type { SessionUser } from 'src/users/dto/session-user';
 import type { Response as ExpressResponse } from 'express';
 import { Session as ExpressSession } from 'express-session';
-import { ConfigService } from '@nestjs/config';
-
 
 @Controller('auth')
 export class AuthController {
-
-    public clientUrl: string
     constructor(
         private readonly authService: AuthService,
         private readonly userService: UsersService,
-        private readonly configService: ConfigService
-    ) {
-        this.clientUrl = configService.getOrThrow("CLIENT_URL")
-    }
+    ) { }
 
     @UseGuards(LocalAuthGuard)
     @Post('/local/login')
     async local_login(
         @Response() res: ExpressResponse,
         @CurrentUser() user: SessionUser,
-        @Session() sess: ExpressSession
     ) {
-        sess.save((err) => {
-            console.log("[INFO] SESSION SAVED, ERR = ", err)
-        })
-        res.cookie('x-auth-cookie', user?.id, {
-            secure: true,
-            httpOnly: false,
-            sameSite: 'none',
-        });
+        res.cookie('x-auth-cookie', user?.id);
         res.status(200).send('Success');
     }
 
@@ -72,21 +56,13 @@ export class AuthController {
 
     @Get('/github/cb')
     @UseGuards(GithubAuthGuard)
-    @Redirect()
-    async github_cb(@Response() res: ExpressResponse, @CurrentUser() user: SessionUser, @Session() sess: ExpressSession) {
-        sess.save((err) => {
-            console.log("[INFO] SESSION SAVED, ERR = ", err)
-        })
-        res.cookie('x-auth-cookie', user?.id, {
-            secure: true,
-            httpOnly: false,
-            sameSite: 'none',
-        });
-        return { url: this.clientUrl }
+    @Redirect('http://localhost:5000')
+    async github_cb(@Response() res: ExpressResponse, @CurrentUser() user: SessionUser) {
+        res.cookie('x-auth-cookie', user?.id);
     }
 
     @Get('/me')
-    async get_user_data(@CurrentUser() user: SessionUser, @Response() res: ExpressResponse, @Session() ses: ExpressSession) {
+    async get_user_data(@CurrentUser() user: SessionUser, @Response() res: ExpressResponse,) {
         if (user == null) {
             res.clearCookie('x-auth-cookie');
             return res.status(400).json({

@@ -5,7 +5,6 @@ import { User } from './../types/user/user';
 
 const getUserData = async () => {
   console.log('Cookie = ' + Cookie.get('x-auth-cookie'));
-  console.log('Cookie = ' + Cookie.get('coolSession'));
   const response = await fetch(`${process.env.NEXT_PUBLIC_SERVER_URL}/auth/me`, {
     method: 'GET',
     credentials: 'include',
@@ -30,6 +29,7 @@ const handleLogout = async () => {
     const data = await response.json();
     Cookie.remove('x-auth-cookie');
     console.log('logout success', data);
+        user = null;
   }
 };
 
@@ -39,6 +39,7 @@ const useAuth = () => {
   const query = useQuery({
     queryKey: ['user'],
     queryFn: getUserData,
+    enabled: Boolean(Cookie.get('x-auth-cookie')),
     retry: false,
   });
   const { data, error, isLoading, isError, isFetching } = query;
